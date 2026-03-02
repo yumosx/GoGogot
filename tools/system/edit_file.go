@@ -1,0 +1,82 @@
+package system
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"gogogot/tools"
+	"strings"
+)
+
+func EditFileTool() tools.Tool {
+	return tools.Tool{
+		Name:        "edit_file",
+		Description: "Edit a file by replacing a specific string with a new one. Safer than write_file for modifying configs — only the matched portion changes. Returns error if old_string is not found.",
+		Parameters: map[string]any{
+			"path": map[string]any{
+				"type":        "string",
+				"description": "Absolute or relative path to the file",
+			},
+			"old_string": map[string]any{
+				"type":        "string",
+				"description": "The exact string to find in the file",
+			},
+			"new_string": map[string]any{
+				"type":        "string",
+				"description": "The replacement string",
+			},
+			"replace_all": map[string]any{
+				"type":        "boolean",
+				"description": "If true, replace all occurrences. Default is false (first occurrence only).",
+			},
+		},
+		Required: []string{"path", "old_string", "new_string"},
+		Handler:  editFile,
+	}
+}
+
+func editFile(_ context.Context, input map[string]any) tools.Result {
+	path, _ := input["path"].(string)
+	oldStr, _ := input["old_string"].(string)
+	newStr, _ := input["new_string"].(string)
+	replaceAll, _ := input["replace_all"].(bool)
+
+	if path == "" {
+		return tools.Result{Output: "path is required", IsErr: true}
+	}
+	if oldStr == "" {
+		return tools.Result{Output: "old_string is required", IsErr: true}
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		slog.Debug("edit_file read error", "path", path, "error", err)
+		return tools.Result{Output: fmt.Sprintf("read error: %v", err), IsErr: true}
+	}
+
+	content := string(data)
+	count := strings.Count(content, oldStr)
+	if count == 0 {
+		return tools.Result{Output: "old_string not found in file", IsErr: true}
+	}
+
+	var updated string
+	if replaceAll {
+		updated = strings.ReplaceAll(content, oldStr, newStr)
+	} else {
+		updated = strings.Replace(content, oldStr, newStr, 1)
+	}
+
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		slog.Debug("edit_file write error", "path", path, "error", err)
+		return tools.Result{Output: fmt.Sprintf("write error: %v", err), IsErr: true}
+	}
+
+	replaced := count
+	if !replaceAll {
+		replaced = 1
+	}
+	slog.Debug("edit_file", "path", path, "occurrences", count, "replaced", replaced)
+	return tools.Result{Output: fmt.Sprintf("replaced %d occurrence(s) in %s", replaced, path)}
+}
