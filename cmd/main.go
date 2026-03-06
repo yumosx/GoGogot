@@ -8,16 +8,17 @@ import (
 	"os/signal"
 	"syscall"
 
-	"gogogot/core/agent"
-	"gogogot/core/prompt"
-	"gogogot/core/store"
+	"gogogot/agent"
+	"gogogot/agent/prompt"
+	"gogogot/store"
 	"gogogot/infra/config"
-	"gogogot/infra/llm"
+	"gogogot/llm"
 	"gogogot/infra/logger"
 	"gogogot/infra/scheduler"
-	"gogogot/infra/transport/bridge"
-	"gogogot/infra/transport/telegram"
-	"gogogot/infra/tools/system"
+	"gogogot/bridge"
+	"gogogot/transport/telegram"
+	"gogogot/tools"
+	"gogogot/tools/system"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
@@ -64,7 +65,7 @@ func main() {
 
 	allTools := coreTools(cfg.BraveAPIKey, sched)
 	allTools = append(allTools, bridge.TransportTools()...)
-	reg := system.NewRegistry(allTools)
+	reg := tools.NewRegistry(allTools)
 
 	client := llm.NewClient(*provider, reg.Definitions())
 	agentCfg := agent.AgentConfig{

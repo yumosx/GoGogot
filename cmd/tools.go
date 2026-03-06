@@ -2,9 +2,9 @@ package main
 
 import (
 	"gogogot/infra/scheduler"
-	"gogogot/infra/tools"
-	"gogogot/infra/tools/system"
-	"gogogot/infra/tools/web"
+	"gogogot/tools"
+	"gogogot/tools/system"
+	"gogogot/tools/web"
 )
 
 func coreTools(braveAPIKey string, sched *scheduler.Scheduler) []tools.Tool {
