@@ -36,10 +36,7 @@ func main() {
 		cfg.Model = *modelFlag
 	}
 
-	if err := logger.Init(cfg.DataDir, cfg.LogLevel); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-	}
-	defer logger.Close()
+	logger.Init(cfg.LogLevel)
 
 	store.Init(cfg.DataDir)
 

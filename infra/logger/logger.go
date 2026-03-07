@@ -2,9 +2,7 @@ package logger
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,23 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var logFile *os.File
-
-func Init(dataDir, logLevel string) error {
-	dir := filepath.Join(dataDir, "logs")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("logger: mkdir: %w", err)
-	}
-
-	name := fmt.Sprintf("gogogot-%s.log", time.Now().Format("2006-01-02"))
-	path := filepath.Join(dir, name)
-
-	var err error
-	logFile, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return fmt.Errorf("logger: open: %w", err)
-	}
-
+func Init(logLevel string) {
 	console := zerolog.ConsoleWriter{
 		Out:        os.Stderr,
 		TimeFormat: "15:04:05",
@@ -54,41 +36,13 @@ func Init(dataDir, logLevel string) error {
 		},
 	}
 
-	fileLevel := parseLevel(logLevel)
-
-	fileWriter := &levelWriter{w: logFile, level: fileLevel}
-	multi := io.MultiWriter(console, fileWriter)
-
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	level := parseLevel(logLevel)
+	zerolog.SetGlobalLevel(level)
 	zerolog.TimeFieldFormat = time.RFC3339
 
-	log.Logger = zerolog.New(multi).With().Timestamp().Logger()
+	log.Logger = zerolog.New(console).With().Timestamp().Logger()
 
-	log.Info().Str("path", path).Str("file_level", fileLevel.String()).Msg("logger initialized")
-	return nil
-}
-
-func Close() {
-	if logFile != nil {
-		_ = logFile.Sync()
-		_ = logFile.Close()
-	}
-}
-
-type levelWriter struct {
-	w     io.Writer
-	level zerolog.Level
-}
-
-func (lw *levelWriter) Write(p []byte) (n int, err error) {
-	return lw.w.Write(p)
-}
-
-func (lw *levelWriter) WriteLevel(level zerolog.Level, p []byte) (n int, err error) {
-	if level < lw.level {
-		return len(p), nil
-	}
-	return lw.w.Write(p)
+	log.Info().Str("level", level.String()).Msg("logger initialized")
 }
 
 func parseLevel(s string) zerolog.Level {
