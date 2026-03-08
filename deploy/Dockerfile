@@ -1,10 +1,11 @@
 FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS builder
+ARG TARGETOS TARGETARCH
 
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /gogogot ./cmd
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /gogogot ./cmd
 
 # -----------------------------------------------------------
 
@@ -32,8 +33,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip3 install --no-cache-dir --break-system-packages \
     requests httpx beautifulsoup4 pandas
 
+ARG TARGETARCH
 # yq (YAML processor)
-RUN curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+RUN curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${TARGETARCH}" \
     -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
 # fd-find installs as fdfind on Ubuntu — symlink to fd

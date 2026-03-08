@@ -1,18 +1,12 @@
-GoGogot
-
 # GoGogot — Lightweight OpenClaw Written in Go
 
-[Go Version](https://go.dev)
-[License](LICENSE)
-[Stars](https://github.com/aspasskiy/GoGogot/stargazers)
-[Lines of code](#)
-[Docker](#deployment)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/aspasskiy/GoGogot?style=flat-square)](https://go.dev)
+[![License](https://img.shields.io/github/license/aspasskiy/GoGogot?style=flat-square)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/aspasskiy/GoGogot?style=flat-square)](https://github.com/aspasskiy/GoGogot/stargazers)
+[![Lines of code](https://img.shields.io/badge/lines-~4%2C500-blue?style=flat-square)](#)
+[![Docker](https://img.shields.io/docker/pulls/octagonlab/gogogot?style=flat-square)](#deployment)
 
-An open-source, self-hosted personal AI agent written in Go. Deploy on your own server as a single ~15 MB binary — it runs shell commands, edits files, browses the web, manages persistent memory, and schedules tasks. A lightweight alternative to OpenClaw (Claude Code) in ~4,500 lines of Go. No frameworks, no plugins, no magic.
-
-## What is GoGogot?
-
-GoGogot is a **lightweight, extensible, and secure** open-source AI agent that lives on your server. It can execute shell commands, read and write files, search and browse the web, maintain persistent memory, and run scheduled tasks. The entire agent is a single Go binary under 15 MB that idles at ~10 MB RAM and deploys with one `docker compose up` command.
+A **lightweight, extensible, and secure** open-source AI agent that lives on your server. It runs shell commands, edits files, browses the web, manages persistent memory, and schedules tasks — a self-hosted alternative to OpenClaw (Claude Code) in ~4,500 lines of Go. The entire agent is a single Go binary under 15 MB that idles at ~10 MB RAM and deploys with one `docker run` command. No frameworks, no plugins, no magic.
 
 ### Philosophy
 
@@ -20,7 +14,7 @@ The core philosophy of GoGogot is built around being **lightweight, extensible, 
 
 - **Lightweight & Containerized**: A single Go binary running inside a Docker container. No heavy frameworks, no complex orchestration. Just a simple eval loop with good tools and smart prompts that consistently outperforms complex frameworks.
 - **Secure**: You are fully in control. API keys never leave your server, and the agent runs isolated in a container.
-- **Single Model & Cost-Efficiency**: Driven by a single LLM of your choice. You can easily switch to affordable models (like DeepSeek V3.2, Qwen3.5, or MiniMax via OpenRouter) to save costs on routine tasks without sacrificing capability.
+- **Single Model & Cost-Efficiency**: Driven by a single LLM of your choice. Switch between Anthropic and 200+ models via OpenRouter with one env var — use affordable models for routine tasks, frontier models when you need them.
 - **Extensible**: Clean Go interfaces make it trivial to add new LLM providers, transports, or custom tools.
 
 ### How It Works
@@ -51,73 +45,63 @@ func (a *Agent) Run(ctx context.Context, input []ContentBlock) error {
 }
 ```
 
-```mermaid
-flowchart LR
-    A[User Message] --> B[LLM]
-    B --> C{Tool Calls?}
-    C -- Yes --> D[Execute Tools]
-    D --> B
-    C -- No --> E[Send Reply]
-```
-
 That's it. Everything else — memory, scheduling, compaction, identity — is just tools the LLM can call inside this loop.
 
 ## Use Cases
 
+> 📰 **Daily Digest**
+> *"Find top 5 AI news from today, summarize each in 2 sentences, send me every morning at 9:00"*
 
-| Use Case                  | Example Prompt                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| 📰 **Daily Digest**       | Find top 5 AI news from today, summarize each in 2 sentences, send me every morning at 9:00 |
-| 📊 **Report Generation**  | Download sales data from this URL, calculate totals by region, generate a PDF report        |
-| 📁 **File Processing**    | Take these 12 screenshots, merge them into a single PDF, and send the file back             |
-| 🔍 **Market Research**    | Search the web for pricing of competitors X, Y, Z and make a comparison table               |
-| 🖥️ **Server Monitoring** | Check disk and memory usage every hour, alert me in Telegram if anything exceeds 80%        |
-| 🗃️ **Data Extraction**   | Fetch this webpage, extract all email addresses and phone numbers into a CSV                |
-| ⚙️ **Routine Automation** | Every Friday at 18:00, pull this week's git commits and send me a changelog summary         |
+> 📊 **Report Generation**
+> *"Download sales data from this URL, calculate totals by region, generate a PDF report"*
+
+> 📁 **File Processing**
+> *"Take these 12 screenshots, merge them into a single PDF, and send the file back"*
+
+> 🔍 **Market Research**
+> *"Search the web for pricing of competitors X, Y, Z and make a comparison table"*
+
+> 🖥️ **Server Monitoring**
+> *"Check disk and memory usage every hour, alert me in Telegram if anything exceeds 80%"*
+
+> 🗃️ **Data Extraction**
+> *"Fetch this webpage, extract all email addresses and phone numbers into a CSV"*
+
+> ⚙️ **Routine Automation**
+> *"Every Friday at 18:00, pull this week's git commits and send me a changelog summary"*
 
 
 ## You Are In Control
 
-Everything is configured explicitly via environment variables passed at deploy time. API keys never leave your server — there is no cloud account, no SaaS dashboard, no telemetry, no phoning home.
-
-
-| Variable             | Purpose                                               |
-| -------------------- | ----------------------------------------------------- |
-| `ANTHROPIC_API_KEY`  | Claude (direct API)                                   |
-| `OPENROUTER_API_KEY` | DeepSeek, Gemini, MiniMax, Qwen, Llama via OpenRouter |
-| `GOGOGOT_MODEL`      | Model ID — see table below (default: first available) |
-| `TELEGRAM_BOT_TOKEN` | Your Telegram bot                                     |
-| `TELEGRAM_OWNER_ID`  | Only this user can talk to the bot                    |
-| `BRAVE_API_KEY`      | Web search (optional)                                 |
+- **Your keys stay on your server.** API keys are passed as environment variables at deploy time and never leave the container. There is no cloud account, no SaaS dashboard, no telemetry, no phoning home.
+- **You pick the model.** 7 built-in models from budget to frontier — switch with one env var. Bring any OpenAI-compatible or Anthropic-compatible endpoint by adding a JSON entry to `models.json`.
+- **You extend the code.** Clean Go interfaces (`Backend`, `Transport`, `Tool`) — add a new LLM provider, a Discord transport, or a custom tool by implementing a single interface. No plugin registry, no framework lock-in.
 
 
 ## Choosing a Model
 
-Set the model via environment variable or CLI flag:
+Two providers are connected out of the box: **Anthropic** (Claude) and **[OpenRouter](https://openrouter.ai)** (access to 200+ models). Set the model via env var or CLI flag:
 
 ```bash
-# Environment variable
-GOGOGOT_MODEL=deepseek
-
-# CLI flag (overrides env)
-./gogogot --model=gemini
+GOGOGOT_MODEL=deepseek      # env var
+./gogogot --model=gemini     # CLI flag (overrides env)
 ```
 
 If `GOGOGOT_MODEL` is not set, the first available provider is used.
 
 ### Built-in Models
 
+| ID         | Model             | Provider   | Context | Vision |
+| ---------- | ----------------- | ---------- | ------- | ------ |
+| `claude`   | Claude Sonnet 4.6 | Anthropic  | 1M      | Yes    |
+| `deepseek` | DeepSeek V3.2     | OpenRouter | 164K    | No     |
+| `gemini`   | Gemini 3 Pro      | OpenRouter | 1M      | Yes    |
+| `minimax`  | MiniMax M2.5      | OpenRouter | 1M      | No     |
+| `qwen`     | Qwen3.5 397B A17B | OpenRouter | 262K    | Yes    |
+| `llama`    | Llama 4 Maverick  | OpenRouter | 1M      | Yes    |
+| `kimi`     | Kimi K2.5         | OpenRouter | 262K    | Yes    |
 
-| ID         | Model             | Provider   | Context | Vision | Arena Rank | Notes                        |
-| ---------- | ----------------- | ---------- | ------- | ------ | ---------- | ---------------------------- |
-| `claude`   | Claude Sonnet 4.6 | Anthropic  | 1M      | Yes    | #16        | Best coding, top-3 code rank |
-| `deepseek` | DeepSeek V3.2     | OpenRouter | 164K    | No     | #49        | Best cost/quality ratio      |
-| `gemini`   | Gemini 3 Pro      | OpenRouter | 1M      | Yes    | #5         | Top-5 overall, multimodal    |
-| `minimax`  | MiniMax M2.5      | OpenRouter | 1M      | No     | #75        | Cheap, good for routines     |
-| `qwen`     | Qwen3.5 397B A17B | OpenRouter | 262K    | Yes    | #22        | Strong multilingual, vision  |
-| `llama`    | Llama 4 Maverick  | OpenRouter | 1M      | Yes    | #160       | Open-source, free tier       |
-| `kimi`     | Kimi K2.5         | OpenRouter | 262K    | Yes    | #19        | Top-20 overall, multimodal   |
-
+For independent benchmarks and model comparisons see [PinchBench](https://pinchbench.com/).
 
 ### Adding Custom Models
 
@@ -137,27 +121,7 @@ Models are defined in `models.json`. Defaults are compiled into the binary, but 
 ]
 ```
 
-Copy an entry, change 3 fields, restart. No recompilation needed. The `api_key_env` field references the environment variable name — keys are passed via environment variables in `docker-compose.yml`, the config is safe to commit.
-
-## Cost
-
-You pick the price/quality tradeoff. All models work out of the box — switch with one env var.
-
-
-| Model                         | Input (per 1M tokens) | Output (per 1M tokens) | ~Cost per session* |
-| ----------------------------- | --------------------- | ---------------------- | ------------------ |
-| Llama 4 Maverick              | $0.15                 | $0.60                  | ~$0.01             |
-| DeepSeek V3.2                 | $0.25                 | $0.40                  | ~$0.02             |
-| MiniMax M2.5 (via OpenRouter) | $0.30                 | $1.10                  | ~$0.03             |
-| Qwen3.5 397B A17B             | $0.39                 | $2.34                  | ~$0.04             |
-| Kimi K2.5                     | $0.45                 | $2.20                  | ~$0.04             |
-| Gemini 3 Pro                  | $1.25                 | $10.00                 | ~$0.16             |
-| Claude Sonnet 4.6             | $3.00                 | $15.00                 | ~$0.30             |
-
-
- Typical session: ~50K input + ~10K output tokens.
-
-For routine tasks — daily digests, file management, web lookups — DeepSeek V3.2 or MiniMax are more than enough. Switch to Claude or Gemini 3 Pro for complex reasoning when you need it.
+Copy an entry, change 3 fields, restart. No recompilation needed. The `api_key_env` field references the environment variable name — keys are passed via environment variables at runtime, the config is safe to commit.
 
 ## Extensible by Design
 
@@ -245,20 +209,42 @@ The LLM sees the full tool list and picks the right one for the job.
 
 ### Docker Deployment
 
+No git clone needed — the image is published on Docker Hub:
+
 ```bash
-git clone https://github.com/aspasskiy/GoGogot.git
-cd GoGogot
-
-# Configure — set env vars directly or export them before running
-export TELEGRAM_BOT_TOKEN=...
-export TELEGRAM_OWNER_ID=...
-export ANTHROPIC_API_KEY=...       # or OPENROUTER_API_KEY
-
-# Run
-docker compose -f deploy/docker-compose.yml up -d
+docker run -d --restart unless-stopped \
+  --name gogogot \
+  -e TELEGRAM_BOT_TOKEN=... \
+  -e TELEGRAM_OWNER_ID=... \
+  -e OPENROUTER_API_KEY=... \
+  -e GOGOGOT_MODEL=deepseek \
+  -v ./data:/data \
+  -v ./work:/work \
+  octagonlab/gogogot:latest
 ```
 
+That's it. The image supports `linux/amd64` and `linux/arm64`.
+
 The Docker image ships with a full Ubuntu environment: bash, git, Python, Node.js, ripgrep, sqlite, postgresql-client, and more.
+
+<details>
+<summary>Alternative: Docker Compose</summary>
+
+```bash
+curl -O https://raw.githubusercontent.com/aspasskiy/GoGogot/main/deploy/docker-compose.yml
+
+# Create .env with your keys
+cat > .env <<EOF
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_OWNER_ID=...
+OPENROUTER_API_KEY=...
+GOGOGOT_MODEL=deepseek
+EOF
+
+docker compose up -d
+```
+
+</details>
 
 ### Local Development
 

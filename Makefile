@@ -1,7 +1,8 @@
-BIN := gogogot
-COMPOSE := docker compose -f deploy/docker-compose.yml
+BIN   := gogogot
+IMAGE := octagonlab/gogogot
+TAG   := latest
 
-.PHONY: run build clean lint up down logs deploy
+.PHONY: run build clean lint docker-build docker-push docker-release deploy
 
 run:
 	go run ./cmd $(ARGS)
@@ -15,14 +16,16 @@ clean:
 lint:
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run ./...
 
-up:
-	$(COMPOSE) up -d --build
+docker-build:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t $(IMAGE):$(TAG) -f deploy/Dockerfile .
 
-down:
-	$(COMPOSE) down
+docker-push:
+	docker push $(IMAGE):$(TAG)
 
-logs:
-	$(COMPOSE) logs -f
+docker-release:
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t $(IMAGE):$(TAG) -f deploy/Dockerfile --push .
 
 deploy:
 	./deploy/deploy.sh

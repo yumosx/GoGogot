@@ -1,17 +1,16 @@
 services:
   gogogot:
-    image: gogogot:latest
+    image: octagonlab/gogogot:latest
     restart: unless-stopped
     environment:
-      GOGOGOT_DATA_DIR: /data
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_OWNER_ID: ${TELEGRAM_OWNER_ID}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      GOGOGOT_MODEL: ${GOGOGOT_MODEL:-}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       TZ: ${TZ:-UTC}
     volumes:
       - ./data:/data
       - ./work:/work
-    command: ["--model=kimi"]
