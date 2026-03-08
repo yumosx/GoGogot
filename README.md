@@ -4,24 +4,18 @@
 [![License](https://img.shields.io/github/license/aspasskiy/GoGogot?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/aspasskiy/GoGogot?style=flat-square)](https://github.com/aspasskiy/GoGogot/stargazers)
 [![Lines of code](https://img.shields.io/badge/lines-~4%2C500-blue?style=flat-square)](#)
-[![Docker](https://img.shields.io/docker/pulls/octagonlab/gogogot?style=flat-square)](#deployment)
+[![Docker](https://img.shields.io/docker/pulls/octagonlab/gogogot?style=flat-square)](#quick-start)
 
-A **lightweight, extensible, and secure** open-source AI agent that lives on your server. It runs shell commands, edits files, browses the web, manages persistent memory, and schedules tasks — a self-hosted alternative to OpenClaw (Claude Code) in ~4,500 lines of Go. The entire agent is a single Go binary under 15 MB that idles at ~10 MB RAM and deploys with one `docker run` command. No frameworks, no plugins, no magic.
+A **lightweight, extensible, and secure** open-source AI agent that lives on your server. It runs shell commands, edits files, browses the web, manages persistent memory, and schedules tasks — a self-hosted alternative to OpenClaw (Claude Code) in ~4,500 lines of Go.
 
-### Philosophy
-
-The core philosophy of GoGogot is built around being **lightweight, extensible, and secure**:
-
-- **Lightweight & Containerized**: A single Go binary running inside a Docker container. No heavy frameworks, no complex orchestration. Just a simple eval loop with good tools and smart prompts that consistently outperforms complex frameworks.
-- **Secure**: You are fully in control. API keys never leave your server, and the agent runs isolated in a container.
-- **Single Model & Cost-Efficiency**: Driven by a single LLM of your choice. Switch between Anthropic and 200+ models via OpenRouter with one env var — use affordable models for routine tasks, frontier models when you need them.
-- **Extensible**: Clean Go interfaces make it trivial to add new LLM providers, transports, or custom tools.
+- **Single binary, ~15 MB, ~10 MB RAM** — deploys with one `docker run` command
+- **Your keys stay on your server** — no cloud account, no telemetry, no phoning home
+- **You pick the model** — 7 built-in models from budget to frontier, switch with one env var. Bring any OpenAI- or Anthropic-compatible endpoint via `models.json`
+- **Extensible** — clean Go interfaces (`Backend`, `Transport`, `Tool`) make it trivial to add providers, transports, or custom tools. [Details →](docs/extending.md)
 
 ### How It Works
 
-The entire agent is a `for` loop. No framework, no state machine, no orchestration layer — just call the LLM, execute any tool calls it returns, feed the results back, and repeat until the model has nothing left to do.
-
-Here is a simplified version of the actual [`Run`](agent/run.go) method with logging and bookkeeping stripped away:
+The entire agent is a `for` loop. Call the LLM, execute tool calls, feed results back, repeat:
 
 ```go
 func (a *Agent) Run(ctx context.Context, input []ContentBlock) error {
@@ -35,7 +29,7 @@ func (a *Agent) Run(ctx context.Context, input []ContentBlock) error {
         a.messages = append(a.messages, resp)
 
         if len(resp.ToolCalls) == 0 {
-            break // model is done — send text to user
+            break
         }
 
         results := a.executeTools(resp.ToolCalls)
@@ -46,6 +40,61 @@ func (a *Agent) Run(ctx context.Context, input []ContentBlock) error {
 ```
 
 That's it. Everything else — memory, scheduling, compaction, identity — is just tools the LLM can call inside this loop.
+
+## Quick Start
+
+### Prerequisites
+
+- Get a `TELEGRAM_BOT_TOKEN` by creating a new bot via [@BotFather](https://t.me/BotFather) on Telegram.
+- Find your `TELEGRAM_OWNER_ID` (your personal Telegram user ID) using a bot like [@userinfobot](https://t.me/userinfobot). **This is critical for security** — it ensures only you can communicate with your agent.
+
+### Docker
+
+No git clone needed — the image is published on Docker Hub:
+
+```bash
+docker run -d --restart unless-stopped \
+  --name gogogot \
+  -e TELEGRAM_BOT_TOKEN=... \
+  -e TELEGRAM_OWNER_ID=... \
+  -e OPENROUTER_API_KEY=... \
+  -e GOGOGOT_MODEL=deepseek \
+  -v ./data:/data \
+  -v ./work:/work \
+  octagonlab/gogogot:latest
+```
+
+The image supports `linux/amd64` and `linux/arm64` and ships with a full Ubuntu environment (bash, git, Python, Node.js, ripgrep, sqlite, postgresql-client, and more).
+
+<details>
+<summary>Alternative: Docker Compose</summary>
+
+```bash
+curl -O https://raw.githubusercontent.com/aspasskiy/GoGogot/main/deploy/docker-compose.yml
+
+# Create .env with your keys
+cat > .env <<EOF
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_OWNER_ID=...
+OPENROUTER_API_KEY=...
+GOGOGOT_MODEL=deepseek
+EOF
+
+docker compose up -d
+```
+
+</details>
+
+<details>
+<summary>Local development (without Docker)</summary>
+
+Requires Go 1.25+:
+
+```bash
+go run cmd/main.go
+```
+
+</details>
 
 ## Use Cases
 
@@ -70,26 +119,33 @@ That's it. Everything else — memory, scheduling, compaction, identity — is j
 > ⚙️ **Routine Automation**
 > *"Every Friday at 18:00, pull this week's git commits and send me a changelog summary"*
 
+## Features
 
-## You Are In Control
+27 built-in tools across 10 categories:
 
-- **Your keys stay on your server.** API keys are passed as environment variables at deploy time and never leave the container. There is no cloud account, no SaaS dashboard, no telemetry, no phoning home.
-- **You pick the model.** 7 built-in models from budget to frontier — switch with one env var. Bring any OpenAI-compatible or Anthropic-compatible endpoint by adding a JSON entry to `models.json`.
-- **You extend the code.** Clean Go interfaces (`Backend`, `Transport`, `Tool`) — add a new LLM provider, a Discord transport, or a custom tool by implementing a single interface. No plugin registry, no framework lock-in.
-
+- **Telegram** — multi-chat, attachments (images, documents), typing indicators
+- **System access** — bash, read/write/edit files, system info
+- **Web** — search (Brave), fetch pages, HTTP requests, download files
+- **Identity** — persistent `soul.md` (agent personality) and `user.md` (owner profile), auto-evolving through conversations
+- **Memory** — persistent markdown files the agent reads and writes itself
+- **Skills** — reusable procedural knowledge the agent creates and consults
+- **Task planning** — session-scoped checklist for multi-step work
+- **Scheduling** — cron-based self-scheduling, persisted across restarts
+- **Compaction** — automatic context compression when approaching token limits
+- **Multi-model** — 7 built-in models, add your own via `models.json`
+- **Observability** — structured event system (LLM calls, tool executions, errors)
 
 ## Choosing a Model
 
-Two providers are connected out of the box: **Anthropic** (Claude) and **[OpenRouter](https://openrouter.ai)** (access to 200+ models). Set the model via env var or CLI flag:
+Two providers out of the box: **Anthropic** (Claude) and **[OpenRouter](https://openrouter.ai)** (200+ models). Set via env var or CLI flag:
 
 ```bash
 GOGOGOT_MODEL=deepseek      # env var
 ./gogogot --model=gemini     # CLI flag (overrides env)
 ```
 
-If `GOGOGOT_MODEL` is not set, the first available provider is used.
-
-### Built-in Models
+<details>
+<summary>Built-in models</summary>
 
 | ID         | Model             | Provider   | Context | Vision |
 | ---------- | ----------------- | ---------- | ------- | ------ |
@@ -101,11 +157,14 @@ If `GOGOGOT_MODEL` is not set, the first available provider is used.
 | `llama`    | Llama 4 Maverick  | OpenRouter | 1M      | Yes    |
 | `kimi`     | Kimi K2.5         | OpenRouter | 262K    | Yes    |
 
-For independent benchmarks and model comparisons see [PinchBench](https://pinchbench.com/).
+For independent benchmarks see [PinchBench](https://pinchbench.com/).
 
-### Adding Custom Models
+</details>
 
-Models are defined in `models.json`. Defaults are compiled into the binary, but you can override them by placing your own `models.json` in the data directory (`~/.gogogot/models.json`):
+<details>
+<summary>Adding custom models</summary>
+
+Place your own `models.json` in the data directory (`~/.gogogot/models.json`):
 
 ```json
 [
@@ -121,149 +180,17 @@ Models are defined in `models.json`. Defaults are compiled into the binary, but 
 ]
 ```
 
-Copy an entry, change 3 fields, restart. No recompilation needed. The `api_key_env` field references the environment variable name — keys are passed via environment variables at runtime, the config is safe to commit.
-
-## Extensible by Design
-
-No plugin system, no registry, no framework. Just Go interfaces and a JSON config.
-
-### Adding a model (no code changes)
-
-Any OpenAI-compatible or Anthropic-compatible API works out of the box. Add an entry to `models.json`, set the `format` field, restart:
-
-- `"format": "openai"` — OpenRouter, Together, Fireworks, any OpenAI-compatible endpoint
-- `"format": "anthropic"` — Anthropic direct API or compatible proxies
-
-See [Adding Custom Models](#adding-custom-models) above for the JSON schema.
-
-### Adding a new LLM backend (code)
-
-If you need a non-OpenAI, non-Anthropic wire format, implement the `Backend` interface — one method:
-
-```go
-type Backend interface {
-    Call(ctx context.Context, model string, systemPrompt string,
-        messages []types.Message, tools []types.ToolDef, maxTokens int,
-    ) (*types.Response, error)
-}
-```
-
-Then register it in `llm/client.go`:
-
-```go
-case "myformat":
-    backend = mypkg.NewBackend(p.BaseURL, p.APIKey)
-```
-
-Ships with: **Anthropic** (native SDK) and **OpenAI-compatible** (OpenRouter, etc.).
-
-### Adding a new transport (code)
-
-Implement `Transport` — 3 methods:
-
-```go
-type Transport interface {
-    Name() string
-    Run(ctx context.Context, handler Handler) error
-    SendText(ctx context.Context, channelID string, text string) error
-}
-```
-
-Optionally implement `FileSender`, `TypingNotifier`, `StatusUpdater` for richer UX (file uploads, typing indicators, editable status messages).
-
-Then add a case in `cmd/main.go`:
-
-```go
-case "discord":
-    return discord.New(cfg.DiscordToken)
-```
-
-Ships with: **Telegram**. Want Discord, Slack, or Matrix? Implement 3 methods and plug it in.
-
-## Features
-
-- **Telegram** — multi-chat, attachments (images, documents), typing indicators
-- **System access** — bash, read/write/edit files, system info
-- **Web** — search (Brave), fetch pages, HTTP requests, download files
-- **Identity** — persistent `soul.md` (agent personality) and `user.md` (owner profile), auto-evolving through conversations
-- **Memory** — persistent markdown files the agent reads and writes itself
-- **Skills** — reusable procedural knowledge the agent creates and consults itself
-- **Task planning** — session-scoped checklist for multi-step work
-- **Scheduling** — cron-based self-scheduling, persisted across restarts
-- **Compaction** — automatic context compression when approaching token limits
-- **Multi-model** — 7 built-in models (Claude Sonnet 4.6, DeepSeek V3.2, Gemini 3 Pro, MiniMax M2.5, Qwen3.5, Llama 4, Kimi K2.5), add your own via `models.json`
-- **Observability** — structured event system (LLM calls, tool executions, errors)
-
-## Tools
-
-27 built-in tools across 10 categories: shell, files, web, identity, memory, skills, system info, scheduling, transport, and task planning.
-
-The LLM sees the full tool list and picks the right one for the job.
-
-## Installation & Quick Start
-
-### Prerequisites
-
-- Get a `TELEGRAM_BOT_TOKEN` by creating a new bot via [@BotFather](https://t.me/BotFather) on Telegram.
-- Find your `TELEGRAM_OWNER_ID` (your personal Telegram user ID) using a bot like [@userinfobot](https://t.me/userinfobot). **This is critical for security** — it ensures only you can communicate with your agent.
-
-### Docker Deployment
-
-No git clone needed — the image is published on Docker Hub:
-
-```bash
-docker run -d --restart unless-stopped \
-  --name gogogot \
-  -e TELEGRAM_BOT_TOKEN=... \
-  -e TELEGRAM_OWNER_ID=... \
-  -e OPENROUTER_API_KEY=... \
-  -e GOGOGOT_MODEL=deepseek \
-  -v ./data:/data \
-  -v ./work:/work \
-  octagonlab/gogogot:latest
-```
-
-That's it. The image supports `linux/amd64` and `linux/arm64`.
-
-The Docker image ships with a full Ubuntu environment: bash, git, Python, Node.js, ripgrep, sqlite, postgresql-client, and more.
-
-<details>
-<summary>Alternative: Docker Compose</summary>
-
-```bash
-curl -O https://raw.githubusercontent.com/aspasskiy/GoGogot/main/deploy/docker-compose.yml
-
-# Create .env with your keys
-cat > .env <<EOF
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_OWNER_ID=...
-OPENROUTER_API_KEY=...
-GOGOGOT_MODEL=deepseek
-EOF
-
-docker compose up -d
-```
+Copy an entry, change 3 fields, restart. The `api_key_env` field references the environment variable name — keys stay in env vars, the config is safe to commit.
 
 </details>
 
-### Local Development
+## Extending
 
-To run the agent locally without Docker (requires Go 1.25+):
+GoGogot is designed to be extended without frameworks or plugin registries. See [docs/extending.md](docs/extending.md) for details on:
 
-```bash
-go run cmd/main.go
-```
-
-## Minimum Dependencies
-
-- **Go 1.25** — compiled, concurrent, zero-dependency runtime
-- [anthropic-sdk-go](https://github.com/anthropics/anthropic-sdk-go) — native Claude API
-- [openai-go](https://github.com/openai/openai-go) — OpenRouter / OpenAI-compatible providers
-- [telegram-bot-api](https://github.com/go-telegram-bot-api/telegram-bot-api) — Telegram transport
-- [robfig/cron](https://github.com/robfig/cron) — scheduler
-- [goldmark](https://github.com/yuin/goldmark) — markdown parsing
-- [goquery](https://github.com/PuerkitoBio/goquery) — HTML parsing for web tools
-- [zerolog](https://github.com/rs/zerolog) — structured logging
+- Adding a new LLM backend (implement one `Backend` interface method)
+- Adding a new transport like Discord or Slack (implement 3 `Transport` methods)
+- Adding custom models via JSON config (no code changes)
 
 ## License
 
