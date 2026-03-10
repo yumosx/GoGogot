@@ -83,7 +83,7 @@ Set `GOGOGOT_PROVIDER`, `GOGOGOT_MODEL`, and the corresponding API key. The agen
 | OpenAI | `openai` | `OPENAI_API_KEY` | `gpt-4o`, `gpt-4.1`, `gpt-5.4`, `o3`, `o4-mini` |
 | OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | `deepseek/deepseek-v3.2`, `google/gemini-3-flash-preview` |
 
-Model metadata (context window, vision support, pricing) is stored in JSON catalogs under [`llm/catalog/`](llm/catalog/) — just edit the JSON to add or update models.
+Model metadata (context window, vision support, pricing) is stored in JSON catalogs under [`llm/catalog/`](internal/llm/catalog/) — just edit the JSON to add or update models.
 
 With OpenRouter you can also pass any slug directly, e.g. `GOGOGOT_MODEL=moonshotai/kimi-k2.5`.
 
@@ -164,7 +164,7 @@ GoGogot is designed to be extended without frameworks or plugin registries:
 
 - Adding a new LLM backend (implement one `Backend` interface method)
 - Adding a new transport like Discord or Slack (implement 3 `Transport` methods)
-- Adding custom models by editing JSON catalogs in [`llm/catalog/`](llm/catalog/)
+- Adding custom models by editing JSON catalogs in [`llm/catalog/`](internal/llm/catalog/)
 
 ## License
 

@@ -1,0 +1,63 @@
+package store
+
+import (
+	"context"
+	"fmt"
+	"gogogot/internal/tools/types"
+	"strings"
+
+	"github.com/rs/zerolog/log"
+)
+
+func (s *Store) RecallTool() types.Tool {
+	return types.Tool{
+		Name:        "recall",
+		Description: "Search your conversation history for past context. Use when the user references something from a previous conversation, or when you need to recall what was discussed before. Returns summaries of matching past episodes.",
+		Parameters: map[string]any{
+			"query": map[string]any{
+				"type":        "string",
+				"description": "What to search for — topic, keyword, or question about past conversations",
+			},
+		},
+		Required: []string{"query"},
+		Handler: func(_ context.Context, input map[string]any) types.Result {
+			query, err := types.GetString(input, "query")
+			if err != nil {
+				return types.ErrResult(err)
+			}
+
+			matches, err := s.SearchEpisodes(query)
+			if err != nil {
+				log.Error().Err(err).Str("query", query).Msg("recall search failed")
+				return types.Result{Output: "error searching history: " + err.Error(), IsErr: true}
+			}
+
+			if len(matches) == 0 {
+				return types.Result{Output: "No relevant past conversations found."}
+			}
+
+			var sb strings.Builder
+			for i, ep := range matches {
+				if i > 0 {
+					sb.WriteString("\n---\n")
+				}
+				dateRange := ep.StartedAt.Format("02 Jan 2006")
+				if !ep.EndedAt.IsZero() && ep.EndedAt.Format("02 Jan 2006") != dateRange {
+					dateRange += " — " + ep.EndedAt.Format("02 Jan 2006")
+				}
+				title := ep.Title
+				if title == "" {
+					title = "Untitled"
+				}
+				fmt.Fprintf(&sb, "[Episode: %s (%s)]\n%s", title, dateRange, ep.Summary)
+				if len(ep.Tags) > 0 {
+					fmt.Fprintf(&sb, "\nTags: %s", strings.Join(ep.Tags, ", "))
+				}
+				sb.WriteByte('\n')
+			}
+
+			log.Debug().Str("query", query).Int("matches", len(matches)).Msg("recall search")
+			return types.Result{Output: sb.String()}
+		},
+	}
+}

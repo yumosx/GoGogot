@@ -1,0 +1,131 @@
+package system
+
+import (
+	"context"
+	"fmt"
+	"gogogot/internal/tools/types"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/rs/zerolog/log"
+)
+
+const maxFileSize = 50 * 1024
+
+func FileTools() []types.Tool {
+	return []types.Tool{
+		{
+			Name:        "read_file",
+			Description: "Read the contents of a file at the given path.",
+			Parameters: map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Absolute or relative path to the file",
+				},
+			},
+			Required: []string{"path"},
+			Handler:  readFile,
+		},
+		{
+			Name:        "write_file",
+			Description: "Write content to a file, creating parent directories as needed.",
+			Parameters: map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Absolute or relative path to the file",
+				},
+				"content": map[string]any{
+					"type":        "string",
+					"description": "The content to write",
+				},
+			},
+			Required: []string{"path", "content"},
+			Handler:  writeFile,
+		},
+		{
+			Name:        "list_files",
+			Description: "List files and directories at the given path.",
+			Parameters: map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Directory path to list (defaults to current directory)",
+				},
+			},
+			Handler: listFiles,
+		},
+	}
+}
+
+func readFile(_ context.Context, input map[string]any) types.Result {
+	path, err := types.GetString(input, "path")
+	if err != nil {
+		return types.ErrResult(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Debug().Str("path", path).Err(err).Msg("read_file error")
+		return types.Result{Output: fmt.Sprintf("read error: %v", err), IsErr: true}
+	}
+
+	truncated := len(data) > maxFileSize
+	if truncated {
+		data = data[:maxFileSize]
+	}
+	log.Debug().Str("path", path).Int("size", len(data)).Bool("truncated", truncated).Msg("read_file")
+
+	if truncated {
+		return types.Result{Output: string(data) + "\n... (file truncated)"}
+	}
+	return types.Result{Output: string(data)}
+}
+
+func writeFile(_ context.Context, input map[string]any) types.Result {
+	path, err := types.GetString(input, "path")
+	if err != nil {
+		return types.ErrResult(err)
+	}
+	content := types.GetStringOpt(input, "content")
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		log.Debug().Str("dir", dir).Err(err).Msg("write_file mkdir error")
+		return types.Result{Output: fmt.Sprintf("mkdir error: %v", err), IsErr: true}
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		log.Debug().Str("path", path).Err(err).Msg("write_file error")
+		return types.Result{Output: fmt.Sprintf("write error: %v", err), IsErr: true}
+	}
+	log.Debug().Str("path", path).Int("bytes", len(content)).Msg("write_file")
+	return types.Result{Output: fmt.Sprintf("wrote %d bytes to %s", len(content), path)}
+}
+
+func listFiles(_ context.Context, input map[string]any) types.Result {
+	path := types.GetStringOpt(input, "path")
+	if path == "" {
+		path = "."
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		log.Debug().Str("path", path).Err(err).Msg("list_files error")
+		return types.Result{Output: fmt.Sprintf("readdir error: %v", err), IsErr: true}
+	}
+
+	log.Debug().Str("path", path).Int("entries", len(entries)).Msg("list_files")
+
+	var b strings.Builder
+	for _, e := range entries {
+		suffix := ""
+		if e.IsDir() {
+			suffix = "/"
+		}
+		fmt.Fprintf(&b, "%s%s\n", e.Name(), suffix)
+	}
+	if b.Len() == 0 {
+		return types.Result{Output: "(empty directory)"}
+	}
+	return types.Result{Output: b.String()}
+}

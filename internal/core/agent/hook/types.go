@@ -1,0 +1,46 @@
+package hook
+
+import (
+	"context"
+	"fmt"
+	"gogogot/internal/llm/types"
+	"gogogot/internal/tools/store"
+	"time"
+)
+
+// Conversation is the agent's view of a conversation store.
+// Decouples the agent loop from the concrete store.Episode implementation.
+type Conversation interface {
+	fmt.Stringer
+	Messages() []store.Turn
+	AppendMessage(store.Turn)
+	ReplaceMessages([]store.Turn) error
+	TotalUsage() *store.Usage
+	CompactAll(reason string)
+	Save() error
+}
+
+type IterationContext struct {
+	Iteration     int
+	Model         string
+	System        string
+	Messages      []types.Message
+	Conversation  Conversation
+	ContextWindow int
+}
+
+type IterationResult struct {
+	Response    *types.Response
+	LLMDuration time.Duration
+	ToolCalls   []ToolCallSummary
+	Usage       *store.Usage
+}
+
+type ToolCallSummary struct {
+	Name     string
+	Duration time.Duration
+	IsErr    bool
+}
+
+type BeforeIterationFunc func(ctx context.Context, ic *IterationContext)
+type AfterIterationFunc func(ctx context.Context, ic *IterationContext, result *IterationResult)
