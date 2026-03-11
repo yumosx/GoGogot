@@ -13,9 +13,8 @@ import (
 )
 
 const (
-	requestTimeout   = 30 * time.Second
-	maxRequestBody   = 1 * 1024 * 1024
-	maxRequestOutput = 50 * 1024
+	requestTimeout = 30 * time.Second
+	maxRequestBody = 1 * 1024 * 1024
 )
 
 func WebRequestTool() types.Tool {
@@ -112,8 +111,8 @@ func webRequest(ctx context.Context, input map[string]any) types.Result {
 	sb.WriteString("\n")
 
 	content := string(respBody)
-	if len(content) > maxRequestOutput-sb.Len() {
-		content = content[:maxRequestOutput-sb.Len()] + "\n... (body truncated)"
+	if len(content) > types.MaxOutputSize-sb.Len() {
+		content = content[:types.MaxOutputSize-sb.Len()] + "\n... (body truncated)"
 	}
 	sb.WriteString(content)
 

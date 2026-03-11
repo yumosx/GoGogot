@@ -61,6 +61,10 @@ func NewClient(p Provider, toolDefs []ToolDef) *Client {
 	}
 }
 
+func (c *Client) SetTools(defs []ToolDef) {
+	c.tools = defs
+}
+
 func (c *Client) ModelID() string {
 	return c.model
 }

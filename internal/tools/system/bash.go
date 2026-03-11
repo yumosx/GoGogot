@@ -14,7 +14,6 @@ import (
 const (
 	defaultBashTimeout = 120 * time.Second
 	maxBashTimeout     = 600 * time.Second
-	maxOutputSize      = 50 * 1024
 )
 
 func BashTool() types.Tool {
@@ -72,8 +71,8 @@ func executeBash(ctx context.Context, input map[string]any) types.Result {
 	output := string(out)
 
 	truncated := false
-	if len(output) > maxOutputSize {
-		output = output[:maxOutputSize] + "\n... (output truncated)"
+	if len(output) > types.MaxOutputSize {
+		output = output[:types.MaxOutputSize] + "\n... (output truncated)"
 		truncated = true
 	}
 

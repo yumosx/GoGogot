@@ -46,7 +46,10 @@ func editFile(_ context.Context, input map[string]any) types.Result {
 	if err != nil {
 		return types.ErrResult(err)
 	}
-	newStr := types.GetStringOpt(input, "new_string")
+	newStr, err := types.GetString(input, "new_string")
+	if err != nil {
+		return types.ErrResult(err)
+	}
 	replaceAll := types.GetBool(input, "replace_all")
 
 	data, err := os.ReadFile(path)

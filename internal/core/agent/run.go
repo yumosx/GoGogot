@@ -50,7 +50,7 @@ func (a *Agent) Run(ctx context.Context, conv hook.Conversation, userBlocks []ty
 		msgs := buildLLMMessages(conv)
 		sys := prompt.SystemPrompt(a.config.PromptLoader())
 
-		tokensBefore := store.EstimateTokens(conv.Messages())
+		tokensBefore := hook.EstimateTokens(conv.Messages())
 		msgCountBefore := len(conv.Messages())
 
 		iterCtx := &hook.IterationContext{
@@ -65,7 +65,7 @@ func (a *Agent) Run(ctx context.Context, conv hook.Conversation, userBlocks []ty
 		a.runBeforeHooks(ctx, iterCtx)
 
 		if len(conv.Messages()) != msgCountBefore {
-			tokensAfter := store.EstimateTokens(conv.Messages())
+			tokensAfter := hook.EstimateTokens(conv.Messages())
 			a.bus.Emit(event2.Compaction, event2.CompactionData{
 				BeforeTokens: tokensBefore,
 				AfterTokens:  tokensAfter,

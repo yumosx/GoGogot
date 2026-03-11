@@ -8,7 +8,6 @@ import (
 	"gogogot/internal/llm"
 	llmTypes "gogogot/internal/llm/types"
 	"gogogot/internal/tools"
-	"gogogot/internal/tools/store"
 	"gogogot/internal/tools/system"
 	toolTypes "gogogot/internal/tools/types"
 )
@@ -18,7 +17,7 @@ type Config struct {
 	Model          string
 	MaxTokens      int
 	Tools          []string
-	Compaction store.CompactionConfig
+	Compaction hook.CompactionConfig
 }
 
 type Agent struct {

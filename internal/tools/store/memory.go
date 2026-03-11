@@ -92,6 +92,29 @@ func (s *Store) MemoryTools() []types.Tool {
 				return types.Result{Output: fmt.Sprintf("memory file %q updated (%d bytes)", file, len(content))}
 			},
 		},
+		{
+			Name:        "memory_delete",
+			Description: "Delete a memory file that is no longer needed. Use to prune outdated or irrelevant information.",
+			Parameters: map[string]any{
+				"file": map[string]any{
+					"type":        "string",
+					"description": "Name of the memory file to delete, e.g. old_tasks.md",
+				},
+			},
+			Required: []string{"file"},
+			Handler: func(_ context.Context, input map[string]any) types.Result {
+				file, err := types.GetString(input, "file")
+				if err != nil {
+					return types.ErrResult(err)
+				}
+				if err := s.DeleteMemory(file); err != nil {
+					log.Error().Err(err).Str("file", file).Msg("memory_delete failed")
+					return types.Result{Output: "error deleting memory: " + err.Error(), IsErr: true}
+				}
+				log.Info().Str("file", file).Msg("memory_delete")
+				return types.Result{Output: fmt.Sprintf("memory file %q deleted", file)}
+			},
+		},
 	}
 }
 

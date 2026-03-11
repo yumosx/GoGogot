@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const MaxOutputSize = 50 * 1024
+
 type Result struct {
 	Output string
 	IsErr  bool

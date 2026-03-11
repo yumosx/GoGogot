@@ -5,10 +5,92 @@ import (
 	"fmt"
 	"gogogot/internal/llm/types"
 	"gogogot/internal/tools/store"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
+
+const charsPerToken = 4
+
+// CompactionConfig controls when and how conversation messages are compacted.
+type CompactionConfig struct {
+	Threshold      float64 // 0.0–1.0, fraction of context window that triggers compaction
+	SafetyMargin   float64 // 1.2 = 20% buffer for token estimate inaccuracy
+	PreserveRecent int     // number of recent messages to keep uncompressed
+	SummaryPrompt  string  // instruction for the summarization LLM call
+}
+
+func DefaultCompactionConfig() CompactionConfig {
+	return CompactionConfig{
+		Threshold:      0.8,
+		SafetyMargin:   1.2,
+		PreserveRecent: 5,
+		SummaryPrompt:  "Summarize the conversation so far. Preserve decisions, TODOs, constraints, errors, file paths mentioned, the current plan, and task_plan checklist state (task IDs, titles, statuses).",
+	}
+}
+
+func (cc *CompactionConfig) ShouldCompact(estimatedTokens, contextWindow int) bool {
+	if contextWindow <= 0 || cc.Threshold <= 0 {
+		return false
+	}
+	adjusted := float64(estimatedTokens) * cc.SafetyMargin
+	limit := cc.Threshold * float64(contextWindow)
+	return adjusted > limit
+}
+
+// EstimateTokens approximates token count from messages (chars / 4).
+func EstimateTokens(messages []store.Turn) int {
+	var chars int
+	for _, m := range messages {
+		chars += estimateBlocksChars(m.Content)
+	}
+	return chars / charsPerToken
+}
+
+func estimateBlocksChars(blocks []types.ContentBlock) int {
+	var n int
+	for _, b := range blocks {
+		switch b.Type {
+		case "text":
+			n += len(b.Text)
+		case "tool_use":
+			n += len(b.ToolName) + len(b.ToolInput)
+		case "tool_result":
+			n += len(b.ToolOutput)
+		case "image":
+			n += 1000
+		}
+	}
+	return n
+}
+
+func renderTranscript(msgs []store.Turn) string {
+	var sb strings.Builder
+	for _, m := range msgs {
+		fmt.Fprintf(&sb, "[%s]: ", m.Role)
+		sb.WriteString(contentToString(m.Content))
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
+func contentToString(blocks []types.ContentBlock) string {
+	var sb strings.Builder
+	for _, b := range blocks {
+		switch b.Type {
+		case "text":
+			sb.WriteString(b.Text)
+		case "tool_use":
+			fmt.Fprintf(&sb, "[tool_use: %s]", b.ToolName)
+		case "tool_result":
+			sb.WriteString(b.ToolOutput)
+		case "image":
+			sb.WriteString("[image]")
+		}
+	}
+	return sb.String()
+}
 
 // Summarizer produces a concise summary from a conversation transcript.
 type Summarizer func(ctx context.Context, prompt string) (string, error)
@@ -16,7 +98,7 @@ type Summarizer func(ctx context.Context, prompt string) (string, error)
 // CompactionBeforeIteration returns a BeforeIterationFunc that compacts
 // conversation messages when they exceed the context window threshold.
 func CompactionBeforeIteration(
-	cfg store.CompactionConfig,
+	cfg CompactionConfig,
 	summarize Summarizer,
 ) BeforeIterationFunc {
 	return func(ctx context.Context, ic *IterationContext) {
@@ -25,7 +107,7 @@ func CompactionBeforeIteration(
 		}
 
 		msgs := ic.Conversation.Messages()
-		estimated := store.EstimateTokens(msgs)
+		estimated := EstimateTokens(msgs)
 		if !cfg.ShouldCompact(estimated, ic.ContextWindow) {
 			return
 		}
@@ -45,7 +127,7 @@ func CompactionBeforeIteration(
 		old := msgs[:cutoff]
 		recent := msgs[cutoff:]
 
-		transcript := store.RenderTranscript(old)
+		transcript := renderTranscript(old)
 		prompt := cfg.SummaryPrompt + "\n\n---\n\n" + transcript
 
 		summary, err := summarize(ctx, prompt)
@@ -68,7 +150,7 @@ func CompactionBeforeIteration(
 			return
 		}
 
-		after := store.EstimateTokens(compacted)
+		after := EstimateTokens(compacted)
 		log.Info().Int("before", estimated).Int("after", after).Msg("compaction done")
 	}
 }

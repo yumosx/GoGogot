@@ -2,6 +2,7 @@ package store
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"gogogot/internal/infra/utils"
@@ -52,6 +53,9 @@ type EpisodeInfo struct {
 	StartedAt time.Time
 	EndedAt   time.Time
 }
+
+// EpisodeSearchFunc is a callback that searches past episodes by query.
+type EpisodeSearchFunc func(ctx context.Context, query string) ([]EpisodeInfo, error)
 
 func (s *Store) NewEpisode(channelID string) *Episode {
 	now := time.Now()

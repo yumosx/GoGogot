@@ -3,10 +3,8 @@ package store
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"gogogot/internal/llm/types"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -52,59 +50,6 @@ func (u *Usage) Add(other Usage) {
 	u.ToolCalls += other.ToolCalls
 	u.Cost += other.Cost
 	u.Duration += other.Duration
-}
-
-const charsPerToken = 4
-
-func EstimateTokens(messages []Turn) int {
-	var chars int
-	for _, m := range messages {
-		chars += estimateBlocksChars(m.Content)
-	}
-	return chars / charsPerToken
-}
-
-func estimateBlocksChars(blocks []types.ContentBlock) int {
-	var n int
-	for _, b := range blocks {
-		switch b.Type {
-		case "text":
-			n += len(b.Text)
-		case "tool_use":
-			n += len(b.ToolName) + len(b.ToolInput)
-		case "tool_result":
-			n += len(b.ToolOutput)
-		case "image":
-			n += 1000
-		}
-	}
-	return n
-}
-
-// CompactionConfig controls when and how episode messages are compacted.
-type CompactionConfig struct {
-	Threshold      float64 // 0.0–1.0, fraction of context window that triggers compaction
-	SafetyMargin   float64 // 1.2 = 20% buffer for token estimate inaccuracy
-	PreserveRecent int     // number of recent messages to keep uncompressed
-	SummaryPrompt  string  // instruction for the summarization LLM call
-}
-
-func DefaultCompactionConfig() CompactionConfig {
-	return CompactionConfig{
-		Threshold:      0.8,
-		SafetyMargin:   1.2,
-		PreserveRecent: 5,
-		SummaryPrompt:  "Summarize the conversation so far. Preserve decisions, TODOs, constraints, errors, file paths mentioned, the current plan, and task_plan checklist state (task IDs, titles, statuses).",
-	}
-}
-
-func (cc *CompactionConfig) ShouldCompact(estimatedTokens, contextWindow int) bool {
-	if contextWindow <= 0 || cc.Threshold <= 0 {
-		return false
-	}
-	adjusted := float64(estimatedTokens) * cc.SafetyMargin
-	limit := cc.Threshold * float64(contextWindow)
-	return adjusted > limit
 }
 
 // --- Episode message methods ---
@@ -174,38 +119,26 @@ func (e *Episode) ReplaceMessages(msgs []Turn) error {
 	return e.rewriteJSONL()
 }
 
-// CompactAll replaces all messages with a single compaction notice.
-func (e *Episode) CompactAll(reason string) {
-	e.messages = []Turn{
-		{
-			Role:      string(types.RoleAssistant),
-			Content:   []types.ContentBlock{types.TextBlock("Context compacted. Reason: " + reason)},
-			Timestamp: time.Now(),
-		},
-	}
-	if err := e.rewriteJSONL(); err != nil {
-		log.Error().Err(err).Msg("episode: failed to rewrite JSONL after CompactAll")
-	}
-}
-
 // --- JSONL I/O ---
+
+func turnToJSON(msg Turn) jsonMessage {
+	jm := jsonMessage{
+		Role:      msg.Role,
+		Content:   msg.Content,
+		Timestamp: msg.Timestamp,
+	}
+	if v, ok := msg.Metadata["compacted"].(bool); ok && v {
+		jm.Compacted = true
+	}
+	return jm
+}
 
 func (e *Episode) appendToJSONL(msg Turn) {
 	path := e.MessagesPath()
 	if path == "" {
 		return
 	}
-	jm := jsonMessage{
-		Role:      msg.Role,
-		Content:   msg.Content,
-		Timestamp: msg.Timestamp,
-	}
-	if msg.Metadata != nil {
-		if v, ok := msg.Metadata["compacted"]; ok && v == true {
-			jm.Compacted = true
-		}
-	}
-	line, err := json.Marshal(jm)
+	line, err := json.Marshal(turnToJSON(msg))
 	if err != nil {
 		log.Error().Err(err).Msg("episode: failed to marshal message for JSONL")
 		return
@@ -231,17 +164,7 @@ func (e *Episode) rewriteJSONL() error {
 	}
 	defer f.Close()
 	for _, msg := range e.messages {
-		jm := jsonMessage{
-			Role:      msg.Role,
-			Content:   msg.Content,
-			Timestamp: msg.Timestamp,
-		}
-		if msg.Metadata != nil {
-			if v, ok := msg.Metadata["compacted"]; ok && v == true {
-				jm.Compacted = true
-			}
-		}
-		line, err := json.Marshal(jm)
+		line, err := json.Marshal(turnToJSON(msg))
 		if err != nil {
 			continue
 		}
@@ -251,32 +174,3 @@ func (e *Episode) rewriteJSONL() error {
 	return nil
 }
 
-// --- Transcript helpers (for compaction) ---
-
-// RenderTranscript serializes messages into a human-readable transcript.
-func RenderTranscript(msgs []Turn) string {
-	var sb strings.Builder
-	for _, m := range msgs {
-		fmt.Fprintf(&sb, "[%s]: ", m.Role)
-		sb.WriteString(contentToString(m.Content))
-		sb.WriteByte('\n')
-	}
-	return sb.String()
-}
-
-func contentToString(blocks []types.ContentBlock) string {
-	var sb strings.Builder
-	for _, b := range blocks {
-		switch b.Type {
-		case "text":
-			sb.WriteString(b.Text)
-		case "tool_use":
-			fmt.Fprintf(&sb, "[tool_use: %s]", b.ToolName)
-		case "tool_result":
-			sb.WriteString(b.ToolOutput)
-		case "image":
-			sb.WriteString("[image]")
-		}
-	}
-	return sb.String()
-}

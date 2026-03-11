@@ -5,9 +5,9 @@ import (
 	"fmt"
 	llmtypes "gogogot/internal/llm/types"
 	"gogogot/internal/tools/store"
-	system2 "gogogot/internal/tools/system"
+	systemtools "gogogot/internal/tools/system"
 	"gogogot/internal/tools/types"
-	web2 "gogogot/internal/tools/web"
+	webtools "gogogot/internal/tools/web"
 
 	"github.com/rs/zerolog/log"
 )
@@ -16,19 +16,22 @@ type Registry struct {
 	tt map[string]types.Tool
 }
 
-func NewRegistry(st *store.Store, braveAPIKey string, extra ...types.Tool) *Registry {
+// EpisodeSearchFunc searches past episodes by semantic relevance.
+type EpisodeSearchFunc = store.EpisodeSearchFunc
+
+func NewRegistry(st *store.Store, braveAPIKey string, searchFn EpisodeSearchFunc, extra ...types.Tool) *Registry {
 	all := []types.Tool{
-		system2.BashTool(),
-		system2.EditFileTool(),
-		system2.SystemInfoTool(),
+		systemtools.BashTool(),
+		systemtools.EditFileTool(),
+		systemtools.SystemInfoTool(),
 	}
-	all = append(all, system2.FileTools()...)
-	all = append(all, web2.WebSearchTool(braveAPIKey))
-	all = append(all, web2.WebFetchTool())
-	all = append(all, web2.WebRequestTool())
-	all = append(all, web2.WebDownloadTool())
+	all = append(all, systemtools.FileTools()...)
+	all = append(all, webtools.WebSearchTool(braveAPIKey))
+	all = append(all, webtools.WebFetchTool())
+	all = append(all, webtools.WebRequestTool())
+	all = append(all, webtools.WebDownloadTool())
 	all = append(all, st.MemoryTools()...)
-	all = append(all, st.RecallTool())
+	all = append(all, RecallTool(searchFn))
 	all = append(all, st.SkillTools()...)
 	all = append(all, extra...)
 

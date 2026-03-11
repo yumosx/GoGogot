@@ -16,7 +16,6 @@ type Conversation interface {
 	AppendMessage(store.Turn)
 	ReplaceMessages([]store.Turn) error
 	TotalUsage() *store.Usage
-	CompactAll(reason string)
 	Save() error
 }
 

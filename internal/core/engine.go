@@ -2,11 +2,12 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"gogogot/internal/channel"
 	"gogogot/internal/core/agent"
 	event2 "gogogot/internal/core/agent/event"
+	"gogogot/internal/core/agent/hook"
+	"gogogot/internal/core/episode"
 	"gogogot/internal/core/prompt"
 	transport2 "gogogot/internal/core/transport"
 	"gogogot/internal/infra/config"
@@ -16,23 +17,18 @@ import (
 	"gogogot/internal/tools"
 	store2 "gogogot/internal/tools/store"
 	"gogogot/internal/tools/system"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/rs/zerolog/log"
 )
 
-const defaultEpisodeGap = 2 * time.Hour
-
 type Engine struct {
-	ch         channel.Channel
-	llmClient  llm2.LLM
-	agent      *agent.Agent
-	store      *store2.Store
-	scheduler  *scheduler.Scheduler
-	registry   *tools.Registry
-	episodeGap time.Duration
+	ch        channel.Channel
+	agent     *agent.Agent
+	store     *store2.Store
+	episodes  *episode.Manager
+	scheduler *scheduler.Scheduler
+	registry  *tools.Registry
 
 	mu      sync.Mutex
 	cancels map[string]context.CancelFunc
@@ -57,9 +53,12 @@ func New(cfg *config.Config, ch channel.Channel) (*Engine, error) {
 	)
 	extra = append(extra, st.IdentityTools(sched.SetLocation)...)
 
-	reg := tools.NewRegistry(st, cfg.BraveAPIKey, extra...)
+	client := llm2.NewClient(*provider, nil)
+	epMgr := episode.NewManager(st, client)
 
-	client := llm2.NewClient(*provider, reg.Definitions())
+	reg := tools.NewRegistry(st, cfg.BraveAPIKey, epMgr.SearchRelevant, extra...)
+
+	client.SetTools(reg.Definitions())
 
 	transportName := ch.Name()
 	modelLabel := provider.Label
@@ -76,17 +75,16 @@ func New(cfg *config.Config, ch channel.Channel) (*Engine, error) {
 			}
 		},
 		MaxTokens:  cfg.MaxTokens,
-		Compaction: store2.DefaultCompactionConfig(),
+		Compaction: hook.DefaultCompactionConfig(),
 	}
 
 	eng := &Engine{
-		ch:         ch,
-		llmClient:  client,
-		store:      st,
-		scheduler:  sched,
-		registry:   reg,
-		episodeGap: defaultEpisodeGap,
-		cancels:    make(map[string]context.CancelFunc),
+		ch:        ch,
+		store:     st,
+		episodes:  epMgr,
+		scheduler: sched,
+		registry:  reg,
+		cancels:   make(map[string]context.CancelFunc),
 	}
 	eng.agent = agent.New(client, agentCfg, reg)
 
@@ -153,7 +151,7 @@ func (e *Engine) handleCommand(ctx context.Context, msg channel.Message) {
 	cmd := msg.Command
 	switch cmd.Name {
 	case channel.CmdNewEpisode:
-		cmd.Result.Error = e.resetEpisode(ctx, msg.SessionID)
+		cmd.Result.Error = e.episodes.Reset(ctx, msg.SessionID)
 	case channel.CmdStop:
 		e.stopAgent(msg.SessionID, cmd)
 	case channel.CmdHistory:
@@ -189,9 +187,9 @@ func (e *Engine) runAgent(ctx context.Context, msg channel.Message) {
 		e.mu.Unlock()
 	}()
 
-	ep, err := e.loadEpisode(agentCtx, sessionID)
+	ep, err := e.episodes.Resolve(agentCtx, sessionID, msg.Text)
 	if err != nil {
-		log.Error().Err(err).Msg("engine: failed to load episode")
+		log.Error().Err(err).Msg("engine: failed to resolve episode")
 		_ = reply.SendText(ctx, "Error: "+err.Error())
 		return
 	}
@@ -257,9 +255,9 @@ func (e *Engine) RunScheduledTask(ctx context.Context, sessionID string, reply c
 		e.mu.Unlock()
 	}()
 
-	ep, err := e.loadEpisode(agentCtx, sessionID)
+	ep, err := e.episodes.Resolve(agentCtx, sessionID, command)
 	if err != nil {
-		return "", fmt.Errorf("load episode: %w", err)
+		return "", fmt.Errorf("resolve episode: %w", err)
 	}
 
 	promptText := prompt.ScheduledTaskPrompt(taskID, command, skill)
@@ -295,113 +293,3 @@ func (e *Engine) RunScheduledTask(ctx context.Context, sessionID string, reply c
 	return finalText, nil
 }
 
-func (e *Engine) loadEpisode(ctx context.Context, sessionID string) (*store2.Episode, error) {
-	ep, err := e.store.LoadOrCreateActiveEpisode(sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	if ep.HasMessages() && time.Since(ep.UpdatedAt) > e.episodeGap {
-		log.Info().
-			Str("session", sessionID).
-			Str("episode", ep.ID).
-			Dur("gap", time.Since(ep.UpdatedAt)).
-			Msg("engine: closing stale episode")
-
-		if err := e.closeEpisode(ctx, ep); err != nil {
-			log.Error().Err(err).Msg("engine: failed to close episode, continuing with new")
-		}
-
-		ep = e.store.NewEpisode(sessionID)
-		if err := ep.Save(); err != nil {
-			return nil, err
-		}
-		if err := e.store.SetActiveEpisodeMapping(sessionID, ep.ID); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := ep.LoadMessages(); err != nil {
-		return nil, fmt.Errorf("load messages: %w", err)
-	}
-
-	return ep, nil
-}
-
-func (e *Engine) resetEpisode(ctx context.Context, sessionID string) error {
-	ep, err := e.store.LoadOrCreateActiveEpisode(sessionID)
-	if err != nil {
-		return err
-	}
-
-	if ep.HasMessages() {
-		if err := e.closeEpisode(ctx, ep); err != nil {
-			log.Error().Err(err).Msg("engine: failed to close episode on reset")
-		}
-	}
-
-	newEp := e.store.NewEpisode(sessionID)
-	if err := newEp.Save(); err != nil {
-		return err
-	}
-	return e.store.SetActiveEpisodeMapping(sessionID, newEp.ID)
-}
-
-type episodeSummaryResult struct {
-	Title   string   `json:"title"`
-	Summary string   `json:"summary"`
-	Tags    []string `json:"tags"`
-}
-
-func (e *Engine) closeEpisode(ctx context.Context, ep *store2.Episode) error {
-	messages, err := ep.TextMessages()
-	if err != nil || len(messages) == 0 {
-		ep.Close()
-		return ep.Save()
-	}
-
-	var transcript strings.Builder
-	for _, m := range messages {
-		fmt.Fprintf(&transcript, "[%s]: %s\n", m.Role, m.Content)
-	}
-
-	promptText := "Summarize this conversation episode. Return ONLY valid JSON:\n" +
-		`{"title": "short title", "summary": "2-3 sentence summary", "tags": ["tag1", "tag2"]}` +
-		"\n\nPreserve: key decisions, outcomes, important facts, action items.\n\n---\n\n" +
-		transcript.String()
-
-	msgs := []types.Message{
-		types.NewUserMessage(types.TextBlock(promptText)),
-	}
-	resp, err := e.llmClient.Call(ctx, msgs, llm2.CallOptions{
-		System:  "You summarize conversations into structured JSON. Be concise and accurate.",
-		NoTools: true,
-	})
-	if err != nil {
-		log.Error().Err(err).Str("episode", ep.ID).Msg("engine: episode summarization failed")
-		if len(messages) > 0 {
-			ep.Title = store2.TruncTitle(messages[0].Content)
-		}
-		ep.Summary = "(summarization failed)"
-	} else {
-		text := types.ExtractText(resp.Content)
-		var result episodeSummaryResult
-		if err := json.Unmarshal([]byte(text), &result); err != nil {
-			start := strings.Index(text, "{")
-			end := strings.LastIndex(text, "}")
-			if start >= 0 && end > start {
-				_ = json.Unmarshal([]byte(text[start:end+1]), &result)
-			}
-		}
-		if result.Title != "" {
-			ep.Title = result.Title
-		} else if ep.Title == "" && len(messages) > 0 {
-			ep.Title = store2.TruncTitle(messages[0].Content)
-		}
-		ep.Summary = result.Summary
-		ep.Tags = result.Tags
-	}
-
-	ep.Close()
-	return ep.Save()
-}

@@ -11,8 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const maxFileSize = 50 * 1024
-
 func FileTools() []types.Tool {
 	return []types.Tool{
 		{
@@ -69,9 +67,9 @@ func readFile(_ context.Context, input map[string]any) types.Result {
 		return types.Result{Output: fmt.Sprintf("read error: %v", err), IsErr: true}
 	}
 
-	truncated := len(data) > maxFileSize
+	truncated := len(data) > types.MaxOutputSize
 	if truncated {
-		data = data[:maxFileSize]
+		data = data[:types.MaxOutputSize]
 	}
 	log.Debug().Str("path", path).Int("size", len(data)).Bool("truncated", truncated).Msg("read_file")
 

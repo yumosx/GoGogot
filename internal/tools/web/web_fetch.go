@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	fetchTimeout   = 15 * time.Second
-	maxFetchBody   = 512 * 1024
-	maxFetchOutput = 50 * 1024
+	fetchTimeout = 15 * time.Second
+	maxFetchBody = 512 * 1024
 )
 
 var defaultSelectors = []string{"article", "main", "[role=main]"}
@@ -154,8 +153,8 @@ func extractNodeText(s *goquery.Selection, sb *strings.Builder) {
 }
 
 func truncateResult(s string) types.Result {
-	if len(s) > maxFetchOutput {
-		return types.Result{Output: s[:maxFetchOutput] + "\n... (content truncated)"}
+	if len(s) > types.MaxOutputSize {
+		return types.Result{Output: s[:types.MaxOutputSize] + "\n... (content truncated)"}
 	}
 	return types.Result{Output: s}
 }
