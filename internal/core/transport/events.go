@@ -4,8 +4,6 @@ import (
 	"context"
 	"gogogot/internal/channel"
 	"gogogot/internal/core/agent/event"
-
-	"github.com/rs/zerolog/log"
 )
 
 var toolLabel = map[string]string{
@@ -60,7 +58,6 @@ func BuildToolStatus(d event.ToolStartData) channel.AgentStatus {
 // interactions (typing, status updates, text). Returns the final text output.
 func ConsumeEvents(ctx context.Context, reply channel.Replier, events <-chan event.Event, statusID string) string {
 	var finalText string
-	var toolsUsed []string
 
 	for ev := range events {
 		switch ev.Kind {
@@ -77,9 +74,6 @@ func ConsumeEvents(ctx context.Context, reply channel.Replier, events <-chan eve
 
 		case event.ToolStart:
 			d, _ := ev.Data.(event.ToolStartData)
-			toolsUsed = append(toolsUsed, d.Name)
-			log.Debug().Str("name", d.Name).Msg("transport: tool running")
-
 			if statusID != "" {
 				_ = reply.UpdateStatus(ctx, statusID, BuildToolStatus(d))
 			}
@@ -98,11 +92,6 @@ func ConsumeEvents(ctx context.Context, reply channel.Replier, events <-chan eve
 
 		case event.Done:
 			cancelled := ctx.Err() != nil
-			log.Info().
-				Strs("tools_used", toolsUsed).
-				Int("response_len", len(finalText)).
-				Bool("cancelled", cancelled).
-				Msg("transport: agent done")
 			if statusID != "" {
 				_ = reply.DeleteStatus(context.Background(), statusID)
 			}

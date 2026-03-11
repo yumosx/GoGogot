@@ -152,12 +152,6 @@ func (t *Channel) convertAndDispatch(ctx context.Context, msgs []*models.Message
 		text = "What's in these files?"
 	}
 
-	log.Debug().
-		Int64("chat_id", chatID).
-		Int("text_len", len(text)).
-		Int("attachments", len(attachments)).
-		Msg("telegram incoming message")
-
 	if strings.HasPrefix(text, "/") {
 		cmdName := strings.Fields(text)[0]
 		log.Info().Str("cmd", cmdName).Msg("command received")

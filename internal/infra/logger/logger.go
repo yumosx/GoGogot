@@ -30,8 +30,8 @@ func Init(logLevel string) {
 
 func parseLevel(s string) zerolog.Level {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "debug":
-		return zerolog.DebugLevel
+	case "trace", "debug":
+		return zerolog.TraceLevel
 	case "warn", "warning":
 		return zerolog.WarnLevel
 	case "error":

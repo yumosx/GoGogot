@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/go-telegram/bot/models"
-	"github.com/rs/zerolog/log"
 )
 
 var phaseEmoji = map[channel.Phase]string{
@@ -49,10 +48,7 @@ func (r *replier) UpdateStatus(ctx context.Context, statusID string, status chan
 	if msgID == 0 {
 		return nil
 	}
-	err = r.ch.client.EditMessage(ctx, r.chatID, msgID, formatStatus(status), models.ParseModeMarkdown)
-	if err != nil {
-		log.Debug().Err(err).Msg("telegram edit failed")
-	}
+	_ = r.ch.client.EditMessage(ctx, r.chatID, msgID, formatStatus(status), models.ParseModeMarkdown)
 	return nil
 }
 
@@ -64,9 +60,6 @@ func (r *replier) DeleteStatus(ctx context.Context, statusID string) error {
 	if msgID == 0 {
 		return nil
 	}
-	err = r.ch.client.DeleteMessage(ctx, r.chatID, msgID)
-	if err != nil {
-		log.Debug().Err(err).Msg("telegram delete failed")
-	}
+	_ = r.ch.client.DeleteMessage(ctx, r.chatID, msgID)
 	return nil
 }

@@ -95,7 +95,6 @@ func (a *Agent) Run(ctx context.Context, conv hook.Conversation, userBlocks []ty
 		})
 
 		if parsed.textContent != "" {
-			log.Debug().Str("text", parsed.textContent).Msg("agent text response")
 			a.bus.Emit(event2.LLMStream, event2.LLMStreamData{Text: parsed.textContent})
 		}
 
@@ -105,7 +104,6 @@ func (a *Agent) Run(ctx context.Context, conv hook.Conversation, userBlocks []ty
 		}
 
 		if len(parsed.toolCalls) == 0 {
-			log.Debug().Msg("no tool calls, ending agent loop")
 			a.runAfterHooks(ctx, iterCtx, result)
 			if result.Usage != nil {
 				a.bus.Emit(event2.LLMResponse, event2.LLMResponseData{Usage: *result.Usage})
@@ -161,12 +159,6 @@ func (a *Agent) executeToolCallLoop(ctx context.Context, toolCalls []types.Conte
 		start := time.Now()
 		toolResult := a.executeTool(ctx, tc.ToolName, input)
 		elapsed := time.Since(start)
-
-		log.Info().
-			Str("name", tc.ToolName).
-			Bool("is_err", toolResult.IsErr).
-			Dur("duration", elapsed).
-			Msg("tool call done")
 
 		a.bus.Emit(event2.ToolEnd, event2.ToolEndData{
 			Name: tc.ToolName, Result: toolResult.Output, DurationMs: elapsed.Milliseconds(),

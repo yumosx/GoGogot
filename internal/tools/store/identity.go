@@ -42,10 +42,8 @@ func (s *Store) IdentityTools(onTimezoneChange func(*time.Location)) []types.Too
 					return types.ErrResult(err)
 				}
 				if err := s.WriteSoul(content); err != nil {
-					log.Error().Err(err).Msg("soul_write failed")
 					return types.Result{Output: "error writing soul.md: " + err.Error(), IsErr: true}
 				}
-				log.Info().Int("content_len", len(content)).Msg("soul_write")
 				return types.Result{Output: fmt.Sprintf("soul.md updated (%d bytes)", len(content))}
 			},
 		},
@@ -80,7 +78,6 @@ func (s *Store) IdentityTools(onTimezoneChange func(*time.Location)) []types.Too
 				oldTZ := s.LoadTimezone()
 
 				if err := s.WriteUser(content); err != nil {
-					log.Error().Err(err).Msg("user_write failed")
 					return types.Result{Output: "error writing user.md: " + err.Error(), IsErr: true}
 				}
 
@@ -90,7 +87,6 @@ func (s *Store) IdentityTools(onTimezoneChange func(*time.Location)) []types.Too
 					log.Info().Str("from", oldTZ.String()).Str("to", newTZ.String()).Msg("timezone changed via user_write")
 				}
 
-				log.Info().Int("content_len", len(content)).Msg("user_write")
 				return types.Result{Output: fmt.Sprintf("user.md updated (%d bytes)", len(content))}
 			},
 		},

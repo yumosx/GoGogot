@@ -55,8 +55,6 @@ func executeBash(ctx context.Context, input map[string]any) types.Result {
 		}
 	}
 
-	log.Debug().Str("command", command).Str("workdir", workdir).Dur("timeout", timeout).Msg("bash exec")
-
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -70,10 +68,8 @@ func executeBash(ctx context.Context, input map[string]any) types.Result {
 	elapsed := time.Since(start)
 	output := string(out)
 
-	truncated := false
 	if len(output) > types.MaxOutputSize {
 		output = output[:types.MaxOutputSize] + "\n... (output truncated)"
-		truncated = true
 	}
 
 	if err != nil {
@@ -81,11 +77,8 @@ func executeBash(ctx context.Context, input map[string]any) types.Result {
 			log.Warn().Str("command", command).Dur("timeout", timeout).Dur("elapsed", elapsed).Msg("bash timeout")
 			return types.Result{Output: fmt.Sprintf("command timed out after %s\n%s", timeout, output), IsErr: true}
 		}
-		log.Debug().Str("command", command).Err(err).Dur("elapsed", elapsed).Msg("bash exit error")
 		return types.Result{Output: fmt.Sprintf("exit error: %v\n%s", err, output), IsErr: true}
 	}
-
-	log.Debug().Str("command", command).Int("output_len", len(output)).Bool("truncated", truncated).Dur("elapsed", elapsed).Msg("bash success")
 
 	if strings.TrimSpace(output) == "" {
 		output = "(no output)"

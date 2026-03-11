@@ -38,7 +38,6 @@ func NewRegistry(st *store.Store, braveAPIKey string, searchFn EpisodeSearchFunc
 	r := &Registry{tt: make(map[string]types.Tool, len(all))}
 	for _, t := range all {
 		r.tt[t.Name] = t
-		log.Debug().Str("name", t.Name).Msg("tool registered")
 	}
 	return r
 }
@@ -67,5 +66,4 @@ func (r *Registry) Definitions() []llmtypes.ToolDef {
 
 func (r *Registry) Register(t types.Tool) {
 	r.tt[t.Name] = t
-	log.Debug().Str("name", t.Name).Msg("tool registered")
 }

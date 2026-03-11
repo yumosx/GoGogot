@@ -81,7 +81,7 @@ func (t *Channel) defaultHandler(ctx context.Context, update *models.Update) {
 	}
 	msg := update.Message
 	if msg.From == nil || msg.From.ID != t.ownerID {
-		log.Debug().Msg("ignoring message from non-owner")
+		log.Trace().Msg("ignoring message from non-owner")
 		return
 	}
 

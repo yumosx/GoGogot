@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -58,8 +56,6 @@ func webDownload(ctx context.Context, input map[string]any) types.Result {
 		dest = filepath.Join("/tmp", dest)
 	}
 
-	log.Debug().Str("url", rawURL).Str("dest", dest).Msg("web_download")
-
 	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	defer cancel()
 
@@ -69,7 +65,6 @@ func webDownload(ctx context.Context, input map[string]any) types.Result {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; SofieBot/1.0)")
 
-	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return types.Result{Output: fmt.Sprintf("http error: %v", err), IsErr: true}
@@ -96,10 +91,7 @@ func webDownload(ctx context.Context, input map[string]any) types.Result {
 		return types.Result{Output: fmt.Sprintf("download error: %v", err), IsErr: true}
 	}
 
-	elapsed := time.Since(start)
 	ct := resp.Header.Get("Content-Type")
-
-	log.Debug().Str("url", rawURL).Str("dest", dest).Int64("bytes", written).Str("content_type", ct).Dur("elapsed", elapsed).Msg("web_download done")
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Downloaded to %s\n", dest)

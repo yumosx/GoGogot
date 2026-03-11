@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -52,8 +51,6 @@ func webFetch(ctx context.Context, input map[string]any) types.Result {
 	}
 	selector := types.GetStringOpt(input, "selector")
 
-	log.Debug().Str("url", rawURL).Str("selector", selector).Msg("web_fetch")
-
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
@@ -66,7 +63,6 @@ func webFetch(ctx context.Context, input map[string]any) types.Result {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Debug().Str("url", rawURL).Err(err).Msg("web_fetch http error")
 		return types.Result{Output: fmt.Sprintf("http error: %v", err), IsErr: true}
 	}
 	defer resp.Body.Close()

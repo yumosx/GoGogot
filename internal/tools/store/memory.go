@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 type MemoryFile struct {
@@ -25,7 +23,6 @@ func (s *Store) MemoryTools() []types.Tool {
 			Handler: func(_ context.Context, _ map[string]any) types.Result {
 				files, err := s.ListMemory()
 				if err != nil {
-					log.Debug().Err(err).Msg("memory_list error")
 					return types.Result{Output: "error listing memory: " + err.Error(), IsErr: true}
 				}
 				if len(files) == 0 {
@@ -55,7 +52,6 @@ func (s *Store) MemoryTools() []types.Tool {
 				}
 				content, err := s.ReadMemory(file)
 				if err != nil {
-					log.Debug().Str("file", file).Err(err).Msg("memory_read error")
 					return types.Result{Output: err.Error(), IsErr: true}
 				}
 				return types.Result{Output: content}
@@ -85,10 +81,8 @@ func (s *Store) MemoryTools() []types.Tool {
 					return types.ErrResult(err)
 				}
 				if err := s.WriteMemory(file, content); err != nil {
-					log.Error().Err(err).Str("file", file).Msg("memory_write failed")
 					return types.Result{Output: "error writing memory: " + err.Error(), IsErr: true}
 				}
-				log.Info().Str("file", file).Int("content_len", len(content)).Msg("memory_write")
 				return types.Result{Output: fmt.Sprintf("memory file %q updated (%d bytes)", file, len(content))}
 			},
 		},
@@ -108,10 +102,8 @@ func (s *Store) MemoryTools() []types.Tool {
 					return types.ErrResult(err)
 				}
 				if err := s.DeleteMemory(file); err != nil {
-					log.Error().Err(err).Str("file", file).Msg("memory_delete failed")
 					return types.Result{Output: "error deleting memory: " + err.Error(), IsErr: true}
 				}
-				log.Info().Str("file", file).Msg("memory_delete")
 				return types.Result{Output: fmt.Sprintf("memory file %q deleted", file)}
 			},
 		},

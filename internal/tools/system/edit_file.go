@@ -6,8 +6,6 @@ import (
 	"gogogot/internal/tools/types"
 	"os"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 func EditFileTool() types.Tool {
@@ -54,7 +52,6 @@ func editFile(_ context.Context, input map[string]any) types.Result {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Debug().Str("path", path).Err(err).Msg("edit_file read error")
 		return types.Result{Output: fmt.Sprintf("read error: %v", err), IsErr: true}
 	}
 
@@ -72,7 +69,6 @@ func editFile(_ context.Context, input map[string]any) types.Result {
 	}
 
 	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
-		log.Debug().Str("path", path).Err(err).Msg("edit_file write error")
 		return types.Result{Output: fmt.Sprintf("write error: %v", err), IsErr: true}
 	}
 
@@ -80,6 +76,5 @@ func editFile(_ context.Context, input map[string]any) types.Result {
 	if !replaceAll {
 		replaced = 1
 	}
-	log.Debug().Str("path", path).Int("occurrences", count).Int("replaced", replaced).Msg("edit_file")
 	return types.Result{Output: fmt.Sprintf("replaced %d occurrence(s) in %s", replaced, path)}
 }

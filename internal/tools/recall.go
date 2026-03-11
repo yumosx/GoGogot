@@ -6,8 +6,6 @@ import (
 	"gogogot/internal/tools/store"
 	"gogogot/internal/tools/types"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 // RecallTool builds the recall tool that delegates search to the provided function.
@@ -30,7 +28,6 @@ func RecallTool(searchFn store.EpisodeSearchFunc) types.Tool {
 
 			matches, err := searchFn(ctx, query)
 			if err != nil {
-				log.Error().Err(err).Str("query", query).Msg("recall search failed")
 				return types.Result{Output: "error searching history: " + err.Error(), IsErr: true}
 			}
 
@@ -58,7 +55,6 @@ func RecallTool(searchFn store.EpisodeSearchFunc) types.Tool {
 				sb.WriteByte('\n')
 			}
 
-			log.Debug().Str("query", query).Int("matches", len(matches)).Msg("recall search")
 			return types.Result{Output: sb.String()}
 		},
 	}

@@ -11,7 +11,6 @@ import (
 	"github.com/openai/openai-go"
 	oaioption "github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/shared"
-	"github.com/rs/zerolog/log"
 )
 
 type Adapter struct {
@@ -52,25 +51,11 @@ func (a *Adapter) Call(
 		params.Tools = oaiTools
 	}
 
-	log.Debug().
-		Str("model", model).
-		Int("messages", len(oaiMsgs)).
-		Msg("openai call start")
-
 	start := time.Now()
-
 	resp, err := a.client.Chat.Completions.New(ctx, params)
-	elapsed := time.Since(start)
 	if err != nil {
-		log.Error().Err(err).Dur("elapsed", elapsed).Msg("openai call failed")
-		return nil, err
+		return nil, fmt.Errorf("openai call (%s, elapsed %s): %w", model, time.Since(start), err)
 	}
-
-	log.Info().
-		Dur("elapsed", elapsed).
-		Int64("prompt_tokens", resp.Usage.PromptTokens).
-		Int64("completion_tokens", resp.Usage.CompletionTokens).
-		Msg("openai call completed")
 
 	return openaiToResponse(resp), nil
 }

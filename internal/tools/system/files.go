@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 func FileTools() []types.Tool {
@@ -63,7 +61,6 @@ func readFile(_ context.Context, input map[string]any) types.Result {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Debug().Str("path", path).Err(err).Msg("read_file error")
 		return types.Result{Output: fmt.Sprintf("read error: %v", err), IsErr: true}
 	}
 
@@ -71,8 +68,6 @@ func readFile(_ context.Context, input map[string]any) types.Result {
 	if truncated {
 		data = data[:types.MaxOutputSize]
 	}
-	log.Debug().Str("path", path).Int("size", len(data)).Bool("truncated", truncated).Msg("read_file")
-
 	if truncated {
 		return types.Result{Output: string(data) + "\n... (file truncated)"}
 	}
@@ -88,15 +83,12 @@ func writeFile(_ context.Context, input map[string]any) types.Result {
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		log.Debug().Str("dir", dir).Err(err).Msg("write_file mkdir error")
 		return types.Result{Output: fmt.Sprintf("mkdir error: %v", err), IsErr: true}
 	}
 
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		log.Debug().Str("path", path).Err(err).Msg("write_file error")
 		return types.Result{Output: fmt.Sprintf("write error: %v", err), IsErr: true}
 	}
-	log.Debug().Str("path", path).Int("bytes", len(content)).Msg("write_file")
 	return types.Result{Output: fmt.Sprintf("wrote %d bytes to %s", len(content), path)}
 }
 
@@ -108,11 +100,8 @@ func listFiles(_ context.Context, input map[string]any) types.Result {
 
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		log.Debug().Str("path", path).Err(err).Msg("list_files error")
 		return types.Result{Output: fmt.Sprintf("readdir error: %v", err), IsErr: true}
 	}
-
-	log.Debug().Str("path", path).Int("entries", len(entries)).Msg("list_files")
 
 	var b strings.Builder
 	for _, e := range entries {

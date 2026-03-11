@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 type Skill struct {
@@ -99,10 +97,8 @@ func (s *Store) SkillTools() []types.Tool {
 
 				path, err := CreateSkill(skillsDir, name, desc, body)
 				if err != nil {
-					log.Error().Err(err).Str("name", name).Msg("skill_create failed")
 					return types.Result{Output: "error creating skill: " + err.Error(), IsErr: true}
 				}
-				log.Info().Str("name", name).Str("path", path).Msg("skill_create")
 				return types.Result{Output: fmt.Sprintf("skill %q created at %s — it will appear in your available_skills on future conversations", name, path)}
 			},
 		},
@@ -134,7 +130,6 @@ func (s *Store) SkillTools() []types.Tool {
 				if err := UpdateSkill(skillsDir, name, content); err != nil {
 					return types.Result{Output: "error updating skill: " + err.Error(), IsErr: true}
 				}
-				log.Info().Str("name", name).Msg("skill_update")
 				return types.Result{Output: fmt.Sprintf("skill %q updated", name)}
 			},
 		},
@@ -156,7 +151,6 @@ func (s *Store) SkillTools() []types.Tool {
 				if err := DeleteSkill(skillsDir, name); err != nil {
 					return types.Result{Output: "error deleting skill: " + err.Error(), IsErr: true}
 				}
-				log.Info().Str("name", name).Msg("skill_delete")
 				return types.Result{Output: fmt.Sprintf("skill %q deleted", name)}
 			},
 		},

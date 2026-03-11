@@ -3,12 +3,12 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"gogogot/internal/llm/types"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/rs/zerolog/log"
 )
 
 type Adapter struct {
@@ -48,27 +48,11 @@ func (a *Adapter) Call(
 		params.Tools = anthTools
 	}
 
-	log.Debug().
-		Str("model", model).
-		Int("messages", len(anthMsgs)).
-		Msg("anthropic call start")
-
 	start := time.Now()
 	msg, err := a.client.Messages.New(ctx, params)
-	elapsed := time.Since(start)
-
 	if err != nil {
-		log.Error().Err(err).Dur("elapsed", elapsed).Msg("anthropic call failed")
-		return nil, err
+		return nil, fmt.Errorf("anthropic call (%s, elapsed %s): %w", model, time.Since(start), err)
 	}
-
-	log.Info().
-		Dur("elapsed", elapsed).
-		Int64("input_tokens", msg.Usage.InputTokens).
-		Int64("output_tokens", msg.Usage.OutputTokens).
-		Str("stop_reason", string(msg.StopReason)).
-		Int("content_blocks", len(msg.Content)).
-		Msg("anthropic call completed")
 
 	return anthropicToResponse(msg), nil
 }

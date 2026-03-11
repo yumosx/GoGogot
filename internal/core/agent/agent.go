@@ -47,7 +47,9 @@ func New(client llm.LLM, config Config, registry *tools.Registry) *Agent {
 	a.loopDetector = hook.NewLoopDetector(0)
 	a.AddBeforeHook(hook.CompactionBeforeIteration(config.Compaction, a.summarize))
 	a.AddBeforeHook(hook.LoggingBeforeIteration())
-	a.AddAfterHook(hook.LoggingAfterIteration())
+	a.AddAfterHook(hook.LoggingAfterIteration(
+		client.InputPricePerM(), client.OutputPricePerM(),
+	))
 	a.AddAfterHook(hook.UsageAfterIteration(
 		client.InputPricePerM(), client.OutputPricePerM(),
 	))

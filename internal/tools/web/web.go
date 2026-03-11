@@ -51,8 +51,6 @@ func webSearch(ctx context.Context, input map[string]any, apiKey string) types.R
 		return types.Result{Output: "BRAVE_API_KEY not set — web search disabled", IsErr: true}
 	}
 
-	log.Debug().Str("query", query).Msg("web_search")
-
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -64,10 +62,8 @@ func webSearch(ctx context.Context, input map[string]any, apiKey string) types.R
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Subscription-Token", apiKey)
 
-	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Debug().Str("query", query).Err(err).Msg("web_search http error")
 		return types.Result{Output: fmt.Sprintf("http error: %v", err), IsErr: true}
 	}
 	defer resp.Body.Close()
@@ -77,8 +73,6 @@ func webSearch(ctx context.Context, input map[string]any, apiKey string) types.R
 		return types.Result{Output: fmt.Sprintf("read body error: %v", err), IsErr: true}
 	}
 
-	log.Debug().Str("query", query).Int("status", resp.StatusCode).Int("body_len", len(body)).Dur("elapsed", time.Since(start)).Msg("web_search response")
-
 	if resp.StatusCode != http.StatusOK {
 		return types.Result{Output: fmt.Sprintf("brave API %d: %s", resp.StatusCode, string(body)), IsErr: true}
 	}
@@ -87,8 +81,6 @@ func webSearch(ctx context.Context, input map[string]any, apiKey string) types.R
 	if err := json.Unmarshal(body, &br); err != nil {
 		return types.Result{Output: fmt.Sprintf("json decode error: %v", err), IsErr: true}
 	}
-
-	log.Debug().Str("query", query).Int("count", len(br.Web.Results)).Msg("web_search results")
 
 	var sb strings.Builder
 	for i, r := range br.Web.Results {

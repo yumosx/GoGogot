@@ -9,8 +9,6 @@ import (
 	"gogogot/internal/llm"
 	"gogogot/internal/llm/types"
 	"gogogot/internal/tools/store"
-
-	"github.com/rs/zerolog/log"
 )
 
 const maxSummariesForSearch = 50
@@ -65,7 +63,6 @@ func (m *Manager) SearchRelevant(ctx context.Context, query string) ([]store.Epi
 		NoTools: true,
 	})
 	if err != nil {
-		log.Error().Err(err).Str("query", query).Msg("episode: semantic search LLM call failed")
 		return nil, fmt.Errorf("search LLM call: %w", err)
 	}
 
@@ -83,7 +80,6 @@ func (m *Manager) SearchRelevant(ctx context.Context, query string) ([]store.Epi
 		matches = matches[:maxResults]
 	}
 
-	log.Debug().Str("query", query).Int("matches", len(matches)).Msg("episode: semantic search")
 	return matches, nil
 }
 

@@ -2,6 +2,8 @@ package hook
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -9,55 +11,42 @@ import (
 
 func LoggingBeforeIteration() BeforeIterationFunc {
 	return func(_ context.Context, ic *IterationContext) {
-		evt := log.Debug().
+		log.Info().
 			Int("iteration", ic.Iteration).
 			Str("model", ic.Model).
-			Int("message_count", len(ic.Messages))
+			Int("messages", len(ic.Messages)).
+			Msg("iteration start")
 
-		if ic.System != "" {
-			evt.Str("system_prompt", truncateStr(ic.System, 300))
+		if log.Logger.GetLevel() <= zerolog.TraceLevel {
+			log.Trace().Msg(formatRequestDump(ic))
 		}
-
-		arr := zerolog.Arr()
-		for _, msg := range ic.Messages {
-			arr.Dict(zerolog.Dict().
-				Str("role", string(msg.Role)).
-				Str("types", blockTypeSummary(msg.Content)).
-				Str("preview", truncateStr(textFromBlocks(msg.Content), 150)))
-		}
-		evt.Array("messages", arr)
-
-		evt.Msg("iteration start")
 	}
 }
 
-func LoggingAfterIteration() AfterIterationFunc {
+func LoggingAfterIteration(inputPricePerM, outputPricePerM float64) AfterIterationFunc {
 	return func(_ context.Context, ic *IterationContext, result *IterationResult) {
 		resp := result.Response
+		cost := CalcCost(inputPricePerM, outputPricePerM, resp.InputTokens, resp.OutputTokens)
 		evt := log.Info().
 			Int("iteration", ic.Iteration).
-			Str("model", ic.Model).
-			Dur("llm_elapsed", result.LLMDuration).
-			Int("input_tokens", resp.InputTokens).
-			Int("output_tokens", resp.OutputTokens).
-			Str("stop_reason", resp.StopReason)
-
-		text := textFromBlocks(resp.Content)
-		if text != "" {
-			evt.Str("response_text", text)
-		}
+			Str("elapsed", formatDuration(result.LLMDuration)).
+			Int("in_tokens", resp.InputTokens).
+			Int("out_tokens", resp.OutputTokens).
+			Str("cost", fmt.Sprintf("$%.4f", cost)).
+			Str("stop", resp.StopReason)
 
 		if len(result.ToolCalls) > 0 {
-			tools := zerolog.Arr()
+			names := make([]string, 0, len(result.ToolCalls))
 			for _, tc := range result.ToolCalls {
-				tools.Dict(zerolog.Dict().
-					Str("name", tc.Name).
-					Dur("duration", tc.Duration).
-					Bool("is_err", tc.IsErr))
+				names = append(names, tc.Name)
 			}
-			evt.Array("tool_calls", tools)
+			evt.Str("tools", strings.Join(names, ", "))
 		}
 
 		evt.Msg("iteration done")
+
+		if log.Logger.GetLevel() <= zerolog.TraceLevel {
+			log.Trace().Msg(formatResponseDump(ic, result))
+		}
 	}
 }

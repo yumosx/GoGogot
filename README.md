@@ -5,10 +5,10 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/aspasskiy/GoGogot?style=flat-square)](https://go.dev)
 [![License](https://img.shields.io/github/license/aspasskiy/GoGogot?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/aspasskiy/GoGogot?style=flat-square)](https://github.com/aspasskiy/GoGogot/stargazers)
-[![Lines of code](https://img.shields.io/badge/lines-~4%2C500-blue?style=flat-square)](#)
+[![Lines of code](https://img.shields.io/badge/lines-~7%2C500-blue?style=flat-square)](#)
 [![Docker](https://img.shields.io/docker/pulls/octagonlab/gogogot?style=flat-square)](#quick-start)
 
-A **lightweight, extensible, and secure** open-source AI agent that lives on your server. It runs shell commands, edits files, browses the web, manages persistent memory, and schedules tasks — a self-hosted alternative to OpenClaw (Claude Code) in ~4,500 lines of Go.
+A **lightweight, extensible, and secure** open-source AI agent that lives on your server. It runs shell commands, edits files, browses the web, manages persistent memory, and schedules tasks — a self-hosted alternative to OpenClaw (Claude Code) in ~7,500 lines of Go.
 
 - **Single binary, ~15 MB, ~10 MB RAM** — deploys with one `docker run` command
 - **Your keys stay on your server** — no cloud account, no telemetry, no phoning home
@@ -118,7 +118,7 @@ Browse all available models: [Anthropic](https://docs.anthropic.com/en/docs/abou
 - **Scheduling** — cron-based self-scheduling, persisted across restarts
 - **Compaction** — automatic context compression near token limits
 - **Multi-model** — Anthropic, OpenAI, or any OpenRouter model
-- **Observability** — structured events (LLM calls, tool runs, errors)
+- **Observability** — compact info-level iteration logs; full request/response dumps at trace level (`LOG_LEVEL=debug`)
 
 ## Use Cases
 

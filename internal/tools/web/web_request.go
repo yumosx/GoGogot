@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -59,8 +57,6 @@ func webRequest(ctx context.Context, input map[string]any) types.Result {
 	body := types.GetStringOpt(input, "body")
 	headers, _ := input["headers"].(map[string]any)
 
-	log.Debug().Str("method", method).Str("url", rawURL).Msg("web_request")
-
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
@@ -85,7 +81,6 @@ func webRequest(ctx context.Context, input map[string]any) types.Result {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	start := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return types.Result{Output: fmt.Sprintf("http error: %v", err), IsErr: true}
@@ -96,9 +91,6 @@ func webRequest(ctx context.Context, input map[string]any) types.Result {
 	if err != nil {
 		return types.Result{Output: fmt.Sprintf("read body error: %v", err), IsErr: true}
 	}
-
-	elapsed := time.Since(start)
-	log.Debug().Str("method", method).Str("url", rawURL).Int("status", resp.StatusCode).Int("body_len", len(respBody)).Dur("elapsed", elapsed).Msg("web_request done")
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "HTTP %d %s\n", resp.StatusCode, resp.Status)
