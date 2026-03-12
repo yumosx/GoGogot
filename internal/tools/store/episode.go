@@ -29,7 +29,6 @@ func TruncTitle(s string) string {
 
 type Episode struct {
 	ID        string    `json:"id"`
-	ChannelID string    `json:"channel_id"`
 	Title     string    `json:"title"`
 	Summary   string    `json:"summary"`
 	Tags      []string  `json:"tags"`
@@ -59,11 +58,10 @@ type EpisodeInfo struct {
 // EpisodeSearchFunc is a callback that searches past episodes by query.
 type EpisodeSearchFunc func(ctx context.Context, query string) ([]EpisodeInfo, error)
 
-func (s *Store) NewEpisode(channelID string) *Episode {
+func (s *Store) NewEpisode() *Episode {
 	now := time.Now()
 	return &Episode{
 		ID:          uuid.NewString(),
-		ChannelID:   channelID,
 		Status:      "active",
 		StartedAt:   now,
 		UpdatedAt:   now,

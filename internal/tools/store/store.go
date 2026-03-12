@@ -22,7 +22,7 @@ func (s *Store) DataDir() string { return s.dataDir }
 func (s *Store) episodesDir() string        { return filepath.Join(s.dataDir, "episodes") }
 func (s *Store) memoryDir() string          { return filepath.Join(s.dataDir, "memory") }
 func (s *Store) SkillsDir() string          { return filepath.Join(s.dataDir, "skills") }
-func (s *Store) episodeMappingPath() string { return filepath.Join(s.dataDir, "external_episodes.json") }
+func (s *Store) activeEpisodePath() string { return filepath.Join(s.dataDir, "active_episode.txt") }
 
 func (s *Store) ensureDirs() error {
 	for _, dir := range []string{s.episodesDir(), s.memoryDir(), s.SkillsDir()} {

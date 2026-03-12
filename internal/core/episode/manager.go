@@ -22,7 +22,7 @@ func NewManager(st *store.Store, client llm.LLM) *Manager {
 // Resolve returns the active episode for the session. If the user's message
 // starts a new topic, the current episode is closed and a fresh one is created.
 func (m *Manager) Resolve(ctx context.Context, sessionID, userMessage string) (*store.Episode, error) {
-	ep, err := m.store.LoadOrCreateActiveEpisode(sessionID)
+	ep, err := m.store.LoadOrCreateActiveEpisode()
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (m *Manager) Resolve(ctx context.Context, sessionID, userMessage string) (*
 				log.Error().Err(err).Msg("episode: failed to close old episode")
 			}
 
-			ep, err = m.createAndMap(sessionID)
+			ep, err = m.createAndMap()
 			if err != nil {
 				return nil, err
 			}
@@ -60,7 +60,7 @@ func (m *Manager) Resolve(ctx context.Context, sessionID, userMessage string) (*
 
 // Reset force-closes the current episode and creates a new one (e.g. /new command).
 func (m *Manager) Reset(ctx context.Context, sessionID string) error {
-	ep, err := m.store.LoadOrCreateActiveEpisode(sessionID)
+	ep, err := m.store.LoadOrCreateActiveEpisode()
 	if err != nil {
 		return err
 	}
@@ -71,16 +71,16 @@ func (m *Manager) Reset(ctx context.Context, sessionID string) error {
 		}
 	}
 
-	_, err = m.createAndMap(sessionID)
+	_, err = m.createAndMap()
 	return err
 }
 
-func (m *Manager) createAndMap(sessionID string) (*store.Episode, error) {
-	ep := m.store.NewEpisode(sessionID)
+func (m *Manager) createAndMap() (*store.Episode, error) {
+	ep := m.store.NewEpisode()
 	if err := ep.Save(); err != nil {
 		return nil, err
 	}
-	if err := m.store.SetActiveEpisodeMapping(sessionID, ep.ID); err != nil {
+	if err := m.store.SetActiveEpisodeID(ep.ID); err != nil {
 		return nil, err
 	}
 	return ep, nil
