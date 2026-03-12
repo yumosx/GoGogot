@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"gogogot/internal/channel/telegram/client"
+	"gogogot/internal/channel/telegram/format"
 	"gogogot/internal/core/transport"
-	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot/models"
@@ -107,35 +107,67 @@ func formatPlanLine(tasks []transport.PlanTask) string {
 	return line
 }
 
-func (r *replier) sendStatus(ctx context.Context, status transport.AgentStatus) (string, error) {
-	msgID := r.ch.sendAndGetID(ctx, r.chatID, formatStatus(status))
-	return strconv.Itoa(msgID), nil
+func (r *replier) sendStatus(ctx context.Context, status transport.AgentStatus) int {
+	return r.ch.sendAndGetID(ctx, r.chatID, formatStatus(status))
 }
 
-func (r *replier) updateStatus(ctx context.Context, statusID string, status transport.AgentStatus) error {
-	msgID, err := strconv.Atoi(statusID)
-	if err != nil {
-		return fmt.Errorf("invalid status ID: %w", err)
-	}
+func (r *replier) updateStatus(ctx context.Context, msgID int, status transport.AgentStatus) {
 	if msgID == 0 {
-		return nil
+		return
 	}
 	if err := r.ch.client.EditMessage(ctx, r.chatID, msgID, formatStatus(status), models.ParseModeMarkdown); err != nil {
 		log.Warn().Err(err).Int("msg_id", msgID).Str("phase", string(status.Phase)).Msg("telegram: EditMessage failed")
 	}
-	return nil
 }
 
-func (r *replier) deleteStatus(ctx context.Context, statusID string) error {
-	msgID, err := strconv.Atoi(statusID)
-	if err != nil {
-		return fmt.Errorf("invalid status ID: %w", err)
-	}
+func (r *replier) deleteStatus(ctx context.Context, msgID int) {
 	if msgID == 0 {
-		return nil
+		return
 	}
 	if err := r.ch.client.DeleteMessage(ctx, r.chatID, msgID); err != nil {
 		log.Warn().Err(err).Int("msg_id", msgID).Msg("telegram: DeleteMessage failed")
 	}
-	return nil
+}
+
+// editToFinal replaces the status message with the final response text.
+// If the text fits in one message, it edits in-place. Otherwise it deletes
+// the status and sends the full text as chunked HTML messages.
+func (r *replier) editToFinal(ctx context.Context, msgID int, text string) {
+	if msgID == 0 {
+		r.ch.sendLong(ctx, r.chatID, text)
+		return
+	}
+
+	chunks := format.FormatHTMLChunks(text, maxMessageLen)
+	if len(chunks) == 0 {
+		r.deleteStatus(ctx, msgID)
+		return
+	}
+
+	// Single chunk: edit the status message in-place.
+	if len(chunks) == 1 {
+		err := r.ch.client.EditMessage(ctx, r.chatID, msgID, chunks[0].HTML, models.ParseModeHTML)
+		if err != nil {
+			log.Warn().Err(err).Msg("telegram: edit to final HTML failed, trying plain text")
+			err = r.ch.client.EditMessage(ctx, r.chatID, msgID, chunks[0].Text, "")
+			if err != nil {
+				log.Warn().Err(err).Msg("telegram: edit to final plain failed, falling back to delete+send")
+				r.deleteStatus(ctx, msgID)
+				r.ch.sendLong(ctx, r.chatID, text)
+			}
+		}
+		return
+	}
+
+	// Multiple chunks: edit status with first chunk, send the rest as new messages.
+	err := r.ch.client.EditMessage(ctx, r.chatID, msgID, chunks[0].HTML, models.ParseModeHTML)
+	if err != nil {
+		log.Warn().Err(err).Msg("telegram: edit first chunk failed, falling back to delete+send")
+		r.deleteStatus(ctx, msgID)
+		r.ch.sendLong(ctx, r.chatID, text)
+		return
+	}
+	for _, chunk := range chunks[1:] {
+		r.ch.sendHTMLChunk(ctx, r.chatID, chunk)
+	}
 }

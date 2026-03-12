@@ -13,68 +13,68 @@ import (
 
 type mediaExtractor struct {
 	check   func(*models.Message) bool
-	process func(t *Channel, ctx context.Context, msg *models.Message) ([]transport.Attachment, error)
+	process func(c *Channel, ctx context.Context, msg *models.Message) ([]transport.Attachment, error)
 }
 
 var mediaExtractors = []mediaExtractor{
 	{
 		check: func(m *models.Message) bool { return m.Animation != nil },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processAnimation(ctx, m.Animation)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processAnimation(ctx, m.Animation)
 		},
 	},
 	{
 		check: func(m *models.Message) bool { return m.Document != nil && m.Animation == nil },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processDocument(ctx, m.Document)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processDocument(ctx, m.Document)
 		},
 	},
 	{
 		check: func(m *models.Message) bool { return len(m.Photo) > 0 },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processPhoto(ctx, m.Photo)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processPhoto(ctx, m.Photo)
 		},
 	},
 	{
 		check: func(m *models.Message) bool { return m.Audio != nil },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processAudio(ctx, m.Audio)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processAudio(ctx, m.Audio)
 		},
 	},
 	{
 		check: func(m *models.Message) bool { return m.Voice != nil },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processVoice(ctx, m.Voice)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processVoice(ctx, m.Voice)
 		},
 	},
 	{
 		check: func(m *models.Message) bool { return m.Video != nil },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processVideo(ctx, m.Video)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processVideo(ctx, m.Video)
 		},
 	},
 	{
 		check: func(m *models.Message) bool { return m.VideoNote != nil },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processVideoNote(ctx, m.VideoNote)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processVideoNote(ctx, m.VideoNote)
 		},
 	},
 	{
 		check: func(m *models.Message) bool { return m.Sticker != nil },
-		process: func(t *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
-			return t.processSticker(ctx, m.Sticker)
+		process: func(c *Channel, ctx context.Context, m *models.Message) ([]transport.Attachment, error) {
+			return c.processSticker(ctx, m.Sticker)
 		},
 	},
 }
 
-func (t *Channel) convertAndDispatch(ctx context.Context, msgs []*models.Message) {
+func (c *Channel) convertAndDispatch(ctx context.Context, msgs []*models.Message) {
 	if len(msgs) == 0 {
 		return
 	}
 
 	chatID := msgs[0].Chat.ID
-	sessionID := fmt.Sprintf("%s%d", channelPrefix, chatID)
-	reply := t.newReplier(chatID)
+	sid := sessionID(chatID)
+	reply := c.newReplier(chatID)
 	var textParts []string
 	var attachments []transport.Attachment
 
@@ -89,7 +89,7 @@ func (t *Channel) convertAndDispatch(ctx context.Context, msgs []*models.Message
 
 		for _, ex := range mediaExtractors {
 			if ex.check(msg) {
-				atts, err := ex.process(t, ctx, msg)
+				atts, err := ex.process(c, ctx, msg)
 				if err != nil {
 					log.Error().Err(err).Msg("failed to process media")
 				} else {
@@ -156,12 +156,12 @@ func (t *Channel) convertAndDispatch(ctx context.Context, msgs []*models.Message
 	if strings.HasPrefix(text, "/") {
 		cmdName := strings.Fields(text)[0]
 		log.Info().Str("cmd", cmdName).Msg("command received")
-		t.handleCommand(ctx, chatID, sessionID, reply, cmdName)
+		c.handleCommand(ctx, chatID, sid, reply, cmdName)
 		return
 	}
 
-	t.handler(ctx, channel.Message{
-		SessionID:   sessionID,
+	c.handler(ctx, channel.Message{
+		SessionID:   sid,
 		Text:        text,
 		Attachments: attachments,
 		Reply:       reply,

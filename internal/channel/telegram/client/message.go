@@ -34,7 +34,11 @@ func (c *Client) DownloadFile(ctx context.Context, fileID string) ([]byte, error
 		return nil, fmt.Errorf("get file info: %w", err)
 	}
 	url := c.b.FileDownloadLink(file)
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create download request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download: %w", err)
 	}

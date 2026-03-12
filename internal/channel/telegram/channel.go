@@ -6,18 +6,11 @@ import (
 	"gogogot/internal/channel"
 	"gogogot/internal/channel/telegram/client"
 	"gogogot/internal/core/transport"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/rs/zerolog/log"
 )
-
-type mediaGroupBuffer struct {
-	messages []*models.Message
-	timer    *time.Timer
-}
 
 type Channel struct {
 	client  *client.Client
@@ -30,40 +23,39 @@ type Channel struct {
 }
 
 func New(token string, ownerID int64) (*Channel, error) {
-	t := &Channel{
+	ch := &Channel{
 		ownerID:     ownerID,
 		mediaGroups: make(map[string]*mediaGroupBuffer),
 	}
 
-	c, err := client.New(token, t.defaultHandler)
+	cl, err := client.New(token, ch.defaultHandler)
 	if err != nil {
 		return nil, err
 	}
-	t.client = c
+	ch.client = cl
 
-	return t, nil
+	return ch, nil
 }
 
-type replier struct {
-	ch     *Channel
-	chatID int64
+func (c *Channel) Name() string   { return "telegram" }
+func (c *Channel) OwnerID() int64 { return c.ownerID }
+
+func (c *Channel) OwnerSession() (string, transport.Replier) {
+	return sessionID(c.ownerID), c.newReplier(c.ownerID)
 }
 
-func (t *Channel) Name() string   { return "telegram" }
-func (t *Channel) OwnerID() int64 { return t.ownerID }
-
-func (t *Channel) OwnerSession() (string, transport.Replier) {
-	return fmt.Sprintf("%s%d", channelPrefix, t.ownerID), t.newReplier(t.ownerID)
+func sessionID(chatID int64) string {
+	return fmt.Sprintf("%s%d", channelPrefix, chatID)
 }
 
-func (t *Channel) newReplier(chatID int64) *replier {
-	return &replier{ch: t, chatID: chatID}
+func (c *Channel) newReplier(chatID int64) *replier {
+	return &replier{ch: c, chatID: chatID}
 }
 
-func (t *Channel) Run(ctx context.Context, handler channel.Handler) error {
-	t.handler = handler
+func (c *Channel) Run(ctx context.Context, handler channel.Handler) error {
+	c.handler = handler
 
-	t.client.SetMyCommands(ctx, []models.BotCommand{
+	c.client.SetMyCommands(ctx, []models.BotCommand{
 		{Command: "new", Description: "Start a fresh conversation"},
 		{Command: "history", Description: "View past conversation episodes"},
 		{Command: "memory", Description: "List memory files"},
@@ -71,84 +63,7 @@ func (t *Channel) Run(ctx context.Context, handler channel.Handler) error {
 		{Command: "help", Description: "Show available commands"},
 	})
 
-	log.Info().Int64("owner_id", t.ownerID).Msg("telegram bot polling started")
-	t.client.Start(ctx)
+	log.Info().Int64("owner_id", c.ownerID).Msg("telegram bot polling started")
+	c.client.Start(ctx)
 	return ctx.Err()
-}
-
-func (t *Channel) defaultHandler(ctx context.Context, update *models.Update) {
-	if update.CallbackQuery != nil {
-		t.handleCallback(ctx, update.CallbackQuery)
-		return
-	}
-
-	if update.Message == nil {
-		return
-	}
-	msg := update.Message
-	if msg.From == nil || msg.From.ID != t.ownerID {
-		log.Trace().Msg("ignoring message from non-owner")
-		return
-	}
-
-	if msg.MediaGroupID != "" {
-		t.handleMediaGroup(ctx, msg)
-	} else {
-		t.convertAndDispatch(ctx, []*models.Message{msg})
-	}
-}
-
-func (t *Channel) handleCallback(ctx context.Context, cb *models.CallbackQuery) {
-	if cb.From.ID != t.ownerID {
-		return
-	}
-	_ = t.client.AnswerCallbackQuery(ctx, cb.ID)
-
-	var chatID int64
-	if cb.Message.Message != nil {
-		chatID = cb.Message.Message.Chat.ID
-	} else {
-		chatID = cb.From.ID
-	}
-	sessionID := fmt.Sprintf("%s%d", channelPrefix, chatID)
-	t.handler(ctx, channel.Message{
-		SessionID: sessionID,
-		Text:      cb.Data,
-		Reply:     t.newReplier(chatID),
-	})
-}
-
-func (t *Channel) handleMediaGroup(ctx context.Context, msg *models.Message) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	groupID := msg.MediaGroupID
-	if buf, ok := t.mediaGroups[groupID]; ok {
-		buf.messages = append(buf.messages, msg)
-		buf.timer.Reset(1 * time.Second)
-	} else {
-		buf := &mediaGroupBuffer{
-			messages: []*models.Message{msg},
-		}
-		buf.timer = time.AfterFunc(1*time.Second, func() {
-			if ctx.Err() != nil {
-				return
-			}
-			t.mu.Lock()
-			msgs := t.mediaGroups[groupID].messages
-			delete(t.mediaGroups, groupID)
-			t.mu.Unlock()
-
-			t.convertAndDispatch(ctx, msgs)
-		})
-		t.mediaGroups[groupID] = buf
-	}
-}
-
-func basename(path string) string {
-	i := strings.LastIndex(path, "/")
-	if i < 0 {
-		return path
-	}
-	return path[i+1:]
 }
