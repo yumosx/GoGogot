@@ -28,6 +28,8 @@ func (m *Manager) Resolve(ctx context.Context, sessionID, userMessage string) (*
 	}
 
 	if ep.HasMessages() {
+		ep.UserMsgCount++
+
 		decision, err := m.classify(ctx, ep, userMessage)
 		if err != nil {
 			log.Warn().Err(err).Msg("episode: classification failed, continuing current episode")
@@ -45,6 +47,8 @@ func (m *Manager) Resolve(ctx context.Context, sessionID, userMessage string) (*
 			if err != nil {
 				return nil, err
 			}
+		} else if shouldUpdateRunSummary(ep.UserMsgCount) {
+			m.updateRunSummary(ctx, ep)
 		}
 	}
 

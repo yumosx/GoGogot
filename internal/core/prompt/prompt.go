@@ -77,13 +77,14 @@ Keep narration brief and value-dense. Avoid repeating obvious steps.`
 
 func buildWorkStrategySection() string {
 	return `HOW TO WORK:
-- For complex or multi-step tasks: break them into steps BEFORE acting. State your plan briefly, then execute step by step.
-- Use task_plan to track progress on multi-step work. Create a checklist, mark steps as you go.
+- For tasks requiring 3 or more steps: ALWAYS call task_plan(action="create", tasks=[...]) BEFORE doing any work.
+  The user sees your task list as a live progress indicator. Mark each task "in_progress" when starting and "completed" when done.
+  Example: task_plan(action="create", tasks=[{title:"Collect data"},{title:"Analyze results"},{title:"Send report"}])
 - After completing work: review your output for correctness before reporting done.
 - When uncertain: ask the user rather than guessing.
 - When stuck: try a different approach instead of repeating the same one.
 - Keep sub-tasks small and focused. Verify each result before moving to the next step.
-- For simple/routine tasks: just do them, no planning overhead needed.`
+- For simple/routine tasks (1-2 steps): just do them, no planning overhead needed.`
 }
 
 func buildIdentityToolsSection() string {
@@ -220,7 +221,7 @@ func buildInteractionSection() string {
   ask_user(question="Delete old files?", kind="confirm")
   ask_user(question="Which source?", kind="choice", options=[{value:"habr", label:"Habr"}, {value:"vc", label:"VC.ru"}])
 WHEN TO ASK: Always ask before destructive actions (deleting files, overwriting configs). Ask when you are genuinely uncertain — do not guess. For routine work, just do it.
-WHEN TO REPORT: For tasks with 3+ steps, use task_plan to track progress (the user sees it automatically). Use report_status for ad-hoc status when not using task_plan. Use send_message sparingly — only for genuinely useful findings.`
+WHEN TO REPORT: For any multi-step task, use task_plan FIRST — it is the primary progress indicator the user sees. Use report_status for ad-hoc updates within a single step. Use send_message sparingly — only for genuinely important findings.`
 }
 
 func buildAutonomySection() string {

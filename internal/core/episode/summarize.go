@@ -13,6 +13,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	summaryInterval       = 5
+	runSummaryMaxTokens   = 150
+	closeSummaryMaxTokens = 300
+)
+
 type summaryResult struct {
 	Title   string   `json:"title"`
 	Summary string   `json:"summary"`
@@ -27,21 +33,38 @@ func (m *Manager) Close(ctx context.Context, ep *store.Episode) error {
 		return ep.Save()
 	}
 
-	var transcript strings.Builder
-	for _, msg := range messages {
-		fmt.Fprintf(&transcript, "[%s]: %s\n", msg.Role, msg.Content)
+	var contextPart string
+	if ep.RunSummary != "" {
+		const tailCap = 4
+		tail := messages
+		if len(tail) > tailCap {
+			tail = tail[len(tail)-tailCap:]
+		}
+		var recent strings.Builder
+		for _, msg := range tail {
+			fmt.Fprintf(&recent, "[%s]: %s\n", msg.Role, msg.Content)
+		}
+		contextPart = "Running summary:\n" + ep.RunSummary +
+			"\n\nRecent messages:\n" + recent.String()
+	} else {
+		var transcript strings.Builder
+		for _, msg := range messages {
+			fmt.Fprintf(&transcript, "[%s]: %s\n", msg.Role, msg.Content)
+		}
+		contextPart = transcript.String()
 	}
 
 	prompt := "Summarize this conversation episode. Return ONLY valid JSON:\n" +
 		`{"title": "short title", "summary": "2-3 sentence summary", "tags": ["tag1", "tag2"]}` +
 		"\n\nPreserve: key decisions, outcomes, important facts, action items.\n\n---\n\n" +
-		transcript.String()
+		contextPart
 
 	resp, err := m.llm.Call(ctx, []types.Message{
 		types.NewUserMessage(types.TextBlock(prompt)),
 	}, llm.CallOptions{
-		System:  "You summarize conversations into structured JSON. Be concise and accurate.",
-		NoTools: true,
+		System:    "You summarize conversations into structured JSON. Be concise and accurate.",
+		NoTools:   true,
+		MaxTokens: closeSummaryMaxTokens,
 	})
 
 	if err != nil {
@@ -64,6 +87,60 @@ func (m *Manager) Close(ctx context.Context, ep *store.Episode) error {
 
 	ep.Close()
 	return ep.Save()
+}
+
+// updateRunSummary refreshes the episode's running summary from recent messages.
+func (m *Manager) updateRunSummary(ctx context.Context, ep *store.Episode) {
+	messages, err := ep.TextMessages()
+	if err != nil || len(messages) == 0 {
+		return
+	}
+
+	const recentCap = 8
+	tail := messages
+	if len(tail) > recentCap {
+		tail = tail[len(tail)-recentCap:]
+	}
+
+	var transcript strings.Builder
+	for _, msg := range tail {
+		fmt.Fprintf(&transcript, "[%s]: %s\n", msg.Role, msg.Content)
+	}
+
+	var prompt string
+	if ep.RunSummary != "" {
+		prompt = fmt.Sprintf(
+			"Previous summary:\n%s\n\nNew messages:\n%s\n\nUpdate the summary in 2-3 sentences. Return ONLY the summary text, no JSON.",
+			ep.RunSummary, transcript.String(),
+		)
+	} else {
+		prompt = fmt.Sprintf(
+			"Conversation so far:\n%s\n\nSummarize in 2-3 sentences. Return ONLY the summary text, no JSON.",
+			transcript.String(),
+		)
+	}
+
+	resp, err := m.llm.Call(ctx, []types.Message{
+		types.NewUserMessage(types.TextBlock(prompt)),
+	}, llm.CallOptions{
+		System:    "You produce concise conversation summaries. Return only plain text, no JSON.",
+		NoTools:   true,
+		MaxTokens: runSummaryMaxTokens,
+	})
+	if err != nil {
+		log.Warn().Err(err).Str("episode", ep.ID).Msg("episode: run summary update failed")
+		return
+	}
+
+	ep.RunSummary = strings.TrimSpace(types.ExtractText(resp.Content))
+	if err := ep.Save(); err != nil {
+		log.Warn().Err(err).Str("episode", ep.ID).Msg("episode: failed to save run summary")
+	}
+}
+
+// ShouldUpdateRunSummary returns true when the message count crosses a summary interval boundary.
+func shouldUpdateRunSummary(count int) bool {
+	return count > 0 && count%summaryInterval == 0
 }
 
 func parseSummaryJSON(text string) summaryResult {

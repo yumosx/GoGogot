@@ -33,10 +33,12 @@ type Episode struct {
 	Title     string    `json:"title"`
 	Summary   string    `json:"summary"`
 	Tags      []string  `json:"tags"`
-	Status    string    `json:"status"` // "active" | "closed"
-	StartedAt time.Time `json:"started_at"`
-	EndedAt   time.Time `json:"ended_at,omitempty"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Status       string    `json:"status"` // "active" | "closed"
+	RunSummary   string    `json:"run_summary,omitempty"`
+	UserMsgCount int       `json:"user_msg_count,omitempty"`
+	StartedAt    time.Time `json:"started_at"`
+	EndedAt      time.Time `json:"ended_at,omitempty"`
+	UpdatedAt    time.Time `json:"updated_at"`
 
 	// In-memory state (not serialized to episode JSON).
 	episodesDir string `json:"-"`

@@ -35,6 +35,7 @@ type CallOptions struct {
 	Memory       string
 	NoTools      bool
 	ExtraTools   []ToolDef
+	MaxTokens    int
 }
 
 type Client struct {
@@ -102,5 +103,10 @@ func (c *Client) Call(ctx context.Context, messages []Message, opts CallOptions)
 		}
 	}
 
-	return c.adapter.Call(ctx, c.model, sys, messages, tools, 4096)
+	maxTokens := opts.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = 4096
+	}
+
+	return c.adapter.Call(ctx, c.model, sys, messages, tools, maxTokens)
 }
