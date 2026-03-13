@@ -3,6 +3,7 @@ package hook
 import (
 	"context"
 	"fmt"
+	"gogogot/internal/llm"
 	"gogogot/internal/llm/types"
 	"gogogot/internal/tools/store"
 	"time"
@@ -26,6 +27,7 @@ type IterationContext struct {
 	Messages      []types.Message
 	Conversation  Conversation
 	ContextWindow int
+	LLM           llm.LLM
 }
 
 type IterationResult struct {

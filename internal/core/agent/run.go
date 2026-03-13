@@ -61,6 +61,7 @@ func (a *Agent) Run(ctx context.Context, conv hook.Conversation, userBlocks []ty
 			Messages:      msgs,
 			Conversation:  conv,
 			ContextWindow: a.client.ContextWindow(),
+			LLM:           a.client,
 		}
 		a.bus.Emit(transport.LLMStart, nil)
 		a.runBeforeHooks(ctx, iterCtx)

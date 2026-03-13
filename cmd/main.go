@@ -15,7 +15,6 @@ import (
 	"gogogot/internal/infra/logger"
 	"gogogot/internal/infra/scheduler"
 	"gogogot/internal/llm"
-	"gogogot/internal/llm/types"
 	"gogogot/internal/tools"
 	"gogogot/internal/tools/store"
 	"gogogot/internal/tools/store/local"
@@ -115,21 +114,8 @@ func buildEngine(cfg *config.Config, ch channel.Channel) (*core.Engine, error) {
 		})
 	}
 
-	compaction := hook.NewCompaction()
-	compaction.WithSummarizer(func(ctx context.Context, p string) (string, error) {
-		msgs := []types.Message{types.NewUserMessage(types.TextBlock(p))}
-		resp, err := client.Call(ctx, msgs, llm.CallOptions{
-			System:  compaction.SummaryPrompt,
-			NoTools: true,
-		})
-		if err != nil {
-			return "", err
-		}
-		return types.ExtractText(resp.Content), nil
-	})
-
 	ag := agent.New(client, instructions, reg)
-	ag.AddBeforeHook(compaction.BeforeHook())
+	ag.AddBeforeHook(hook.NewCompaction().BeforeHook())
 
 	return core.New(core.Params{
 		Channel:   ch,

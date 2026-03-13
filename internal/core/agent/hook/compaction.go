@@ -3,6 +3,7 @@ package hook
 import (
 	"context"
 	"fmt"
+	"gogogot/internal/llm"
 	"gogogot/internal/llm/types"
 	"gogogot/internal/tools/store"
 	"strings"
@@ -66,17 +67,13 @@ func contentToString(blocks []types.ContentBlock) string {
 	return sb.String()
 }
 
-// Summarizer produces a concise summary from a conversation transcript.
-type Summarizer func(ctx context.Context, prompt string) (string, error)
-
-// Compaction is a self-contained compaction hook. Create with NewCompaction,
-// attach a summarizer via WithSummarizer, and register via BeforeHook().
+// Compaction is a self-contained compaction hook. Create with NewCompaction
+// and register via BeforeHook(). Uses LLM from IterationContext for summarization.
 type Compaction struct {
 	Threshold      float64 // 0.0–1.0, fraction of context window that triggers compaction
 	SafetyMargin   float64 // 1.2 = 20 % buffer for token estimate inaccuracy
 	PreserveRecent int     // number of recent messages to keep uncompressed
 	SummaryPrompt  string  // instruction for the summarization LLM call
-	summarizer     Summarizer
 }
 
 func NewCompaction() *Compaction {
@@ -86,11 +83,6 @@ func NewCompaction() *Compaction {
 		PreserveRecent: 5,
 		SummaryPrompt:  "Summarize the conversation so far. Preserve decisions, TODOs, constraints, errors, file paths mentioned, the current plan, and task_plan checklist state (task IDs, titles, statuses).",
 	}
-}
-
-func (c *Compaction) WithSummarizer(s Summarizer) *Compaction {
-	c.summarizer = s
-	return c
 }
 
 func (c *Compaction) shouldCompact(estimatedTokens, contextWindow int) bool {
@@ -106,7 +98,7 @@ func (c *Compaction) shouldCompact(estimatedTokens, contextWindow int) bool {
 // when they exceed the context window threshold.
 func (c *Compaction) BeforeHook() BeforeIterationFunc {
 	return func(ctx context.Context, ic *IterationContext) {
-		if ic.ContextWindow <= 0 || ic.Conversation == nil {
+		if ic.ContextWindow <= 0 || ic.Conversation == nil || ic.LLM == nil {
 			return
 		}
 
@@ -134,11 +126,15 @@ func (c *Compaction) BeforeHook() BeforeIterationFunc {
 		transcript := renderTranscript(old)
 		prompt := c.SummaryPrompt + "\n\n---\n\n" + transcript
 
-		summary, err := c.summarizer(ctx, prompt)
+		resp, err := ic.LLM.Call(ctx, []types.Message{types.NewUserMessage(types.TextBlock(prompt))}, llm.CallOptions{
+			System:  c.SummaryPrompt,
+			NoTools: true,
+		})
 		if err != nil {
 			log.Error().Err(err).Msg("compaction summarize failed")
 			return
 		}
+		summary := types.ExtractText(resp.Content)
 
 		compacted := make([]store.Turn, 0, 1+len(recent))
 		compacted = append(compacted, store.Turn{

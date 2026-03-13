@@ -2,7 +2,7 @@ package transport
 
 import "context"
 
-// Replier sends responses back to the user within a specific session.
+// Replier sends responses back to the user.
 // Each channel creates a Replier per conversation/chat.
 type Replier interface {
 	SendText(ctx context.Context, text string) error

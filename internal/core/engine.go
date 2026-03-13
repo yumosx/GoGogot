@@ -17,7 +17,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type activeSession struct {
+type activeRun struct {
 	cancel     context.CancelFunc
 	replyInbox chan string // unbuffered; used for ask_user responses
 }
@@ -31,7 +31,7 @@ type Engine struct {
 	registry  *tools.Registry
 
 	mu     sync.Mutex
-	active *activeSession
+	active *activeRun
 }
 
 type Params struct {
@@ -81,12 +81,12 @@ func (e *Engine) handleMessage(ctx context.Context, msg channel.Message) {
 	}
 
 	e.mu.Lock()
-	sess := e.active
+	run := e.active
 	e.mu.Unlock()
 
-	if sess != nil {
+	if run != nil {
 		select {
-		case sess.replyInbox <- msg.Text:
+		case run.replyInbox <- msg.Text:
 			return
 		default:
 		}
@@ -132,9 +132,9 @@ func (e *Engine) handleCommand(ctx context.Context, msg channel.Message) {
 
 // setActive marks the engine as busy and returns a release function.
 // Caller must defer the release.
-func (e *Engine) setActive(sess *activeSession) func() {
+func (e *Engine) setActive(run *activeRun) func() {
 	e.mu.Lock()
-	e.active = sess
+	e.active = run
 	e.mu.Unlock()
 	return func() {
 		e.mu.Lock()
@@ -149,11 +149,11 @@ func (e *Engine) runAgent(ctx context.Context, msg channel.Message) {
 	agentCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	sess := &activeSession{
+	run := &activeRun{
 		cancel:     cancel,
 		replyInbox: make(chan string),
 	}
-	defer e.setActive(sess)()
+	defer e.setActive(run)()
 
 	ep, err := e.episodes.Resolve(agentCtx, msg.Text)
 	if err != nil {
@@ -175,7 +175,7 @@ func (e *Engine) runAgent(ctx context.Context, msg channel.Message) {
 		}
 	}()
 
-	finalText := reply.ConsumeEvents(agentCtx, recv, sess.replyInbox)
+	finalText := reply.ConsumeEvents(agentCtx, recv, run.replyInbox)
 	if finalText != "" {
 		_ = reply.SendText(ctx, finalText)
 	}
@@ -183,15 +183,15 @@ func (e *Engine) runAgent(ctx context.Context, msg channel.Message) {
 
 func (e *Engine) stopAgent(cmd *channel.Command) {
 	e.mu.Lock()
-	sess := e.active
+	run := e.active
 	e.mu.Unlock()
 
-	if sess == nil {
+	if run == nil {
 		cmd.Result.Data = map[string]string{"text": "Nothing to cancel."}
 		return
 	}
 
-	sess.cancel()
+	run.cancel()
 	cmd.Result.Data = map[string]string{"text": "⏹ Stopping..."}
 }
 
@@ -211,8 +211,8 @@ func (e *Engine) RunScheduledTask(ctx context.Context, reply transport.Replier, 
 	defer cancel()
 	agentCtx = transport.WithReplier(agentCtx, reply)
 
-	sess := &activeSession{cancel: cancel, replyInbox: make(chan string)}
-	defer e.setActive(sess)()
+	run := &activeRun{cancel: cancel, replyInbox: make(chan string)}
+	defer e.setActive(run)()
 
 	ep, err := e.episodes.Resolve(agentCtx, command)
 	if err != nil {

@@ -32,7 +32,7 @@ type taskItem struct {
 	Status taskStatus
 }
 
-// TaskPlan holds session-scoped task state. Create one per agent session.
+// TaskPlan holds per-run task state. Create one per agent run.
 type TaskPlan struct {
 	mu     sync.Mutex
 	tasks  []taskItem
