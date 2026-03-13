@@ -65,13 +65,13 @@ func notifyOwnerAndBlock(ch channel.Channel, providerErr error) {
 func buildChannel(cfg *config.Config) (channel.Channel, error) {
 	switch cfg.Transport {
 	case "telegram":
-		if cfg.TelegramToken == "" {
+		if cfg.Telegram.Token == "" {
 			return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required for telegram transport")
 		}
-		if cfg.TelegramOwnerID == 0 {
+		if cfg.Telegram.OwnerID == 0 {
 			return nil, fmt.Errorf("TELEGRAM_OWNER_ID is required for telegram transport")
 		}
-		return telegram.New(cfg.TelegramToken, cfg.TelegramOwnerID)
+		return telegram.New(cfg.Telegram.Token, cfg.Telegram.OwnerID)
 	default:
 		return nil, fmt.Errorf("unknown transport: %s", cfg.Transport)
 	}

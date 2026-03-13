@@ -24,10 +24,24 @@ var backoffSchedule = []time.Duration{
 	60 * time.Minute,
 }
 
-const (
-	defaultTaskTimeout = 5 * time.Minute
-	maxConcurrentTasks = 2
-)
+type Options struct {
+	TaskTimeout    time.Duration
+	MaxConcurrent  int
+}
+
+func (o Options) taskTimeout() time.Duration {
+	if o.TaskTimeout > 0 {
+		return o.TaskTimeout
+	}
+	return 5 * time.Minute
+}
+
+func (o Options) maxConcurrent() int {
+	if o.MaxConcurrent > 0 {
+		return o.MaxConcurrent
+	}
+	return 2
+}
 
 type TaskState struct {
 	LastRunAt         time.Time `json:"last_run_at,omitempty"`
@@ -37,7 +51,7 @@ type TaskState struct {
 	ConsecutiveErrors int       `json:"consecutive_errors,omitempty"`
 }
 
-type Task struct {
+type TaskData struct {
 	ID        string    `json:"id"`
 	Schedule  string    `json:"schedule"`
 	Command   string    `json:"command"`
@@ -45,20 +59,17 @@ type Task struct {
 	Label     string    `json:"label"`
 	CreatedAt time.Time `json:"created_at"`
 	State     TaskState `json:"state"`
+}
 
+type Task struct {
+	TaskData
 	entryID cron.EntryID
 	running atomic.Bool
 }
 
 type TaskInfo struct {
-	ID        string    `json:"id"`
-	Schedule  string    `json:"schedule"`
-	Command   string    `json:"command"`
-	Skill     string    `json:"skill,omitempty"`
-	Label     string    `json:"label"`
-	NextRun   time.Time `json:"next_run"`
-	CreatedAt time.Time `json:"created_at"`
-	State     TaskState `json:"state"`
+	TaskData
+	NextRun time.Time `json:"next_run"`
 }
 
 type Scheduler struct {
@@ -68,9 +79,10 @@ type Scheduler struct {
 	path     string
 	executor TaskExecutor
 	sem      chan struct{}
+	opts     Options
 }
 
-func New(dataDir string, executor TaskExecutor, loc *time.Location) *Scheduler {
+func New(dataDir string, executor TaskExecutor, loc *time.Location, opts Options) *Scheduler {
 	if loc == nil {
 		loc = time.UTC
 	}
@@ -79,7 +91,8 @@ func New(dataDir string, executor TaskExecutor, loc *time.Location) *Scheduler {
 		tasks:    make(map[string]*Task),
 		path:     filepath.Join(dataDir, "schedules.json"),
 		executor: executor,
-		sem:      make(chan struct{}, maxConcurrentTasks),
+		sem:      make(chan struct{}, opts.maxConcurrent()),
+		opts:     opts,
 	}
 }
 
@@ -138,13 +151,15 @@ func (s *Scheduler) Add(id, schedule, command, skill, label string) error {
 	}
 
 	s.tasks[id] = &Task{
-		ID:        id,
-		Schedule:  schedule,
-		Command:   command,
-		Skill:     skill,
-		Label:     label,
-		CreatedAt: time.Now(),
-		entryID:   entryID,
+		TaskData: TaskData{
+			ID:        id,
+			Schedule:  schedule,
+			Command:   command,
+			Skill:     skill,
+			Label:     label,
+			CreatedAt: time.Now(),
+		},
+		entryID: entryID,
 	}
 
 	return s.save()
@@ -171,13 +186,7 @@ func (s *Scheduler) List() []TaskInfo {
 	out := make([]TaskInfo, 0, len(s.tasks))
 	for _, t := range s.tasks {
 		info := TaskInfo{
-			ID:        t.ID,
-			Schedule:  t.Schedule,
-			Command:   t.Command,
-			Skill:     t.Skill,
-			Label:     t.Label,
-			CreatedAt: t.CreatedAt,
-			State:     t.State,
+			TaskData: t.TaskData,
 		}
 		if entry := s.cron.Entry(t.entryID); !entry.Next.IsZero() {
 			info.NextRun = entry.Next
@@ -224,7 +233,7 @@ func (s *Scheduler) makeRunner(id, command, skill string) func() {
 		log.Info().Str("id", id).Str("command", command).Msg("scheduler firing task")
 		start := time.Now()
 
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTaskTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), s.opts.taskTimeout())
 		defer cancel()
 
 		output, err := s.executor(ctx, id, command, skill)

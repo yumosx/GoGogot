@@ -5,18 +5,34 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
+type TelegramConfig struct {
+	Token   string
+	OwnerID int64
+}
+
+type LLMConfig struct {
+	Model     string
+	Provider  string // "anthropic", "openai", or "openrouter"
+	MaxTokens int
+}
+
+type SchedulerConfig struct {
+	TaskTimeout   time.Duration
+	MaxConcurrent int
+}
+
 type Config struct {
-	Transport       string // "telegram" (default), "tui", "http", "slack", ...
-	TelegramToken   string
-	TelegramOwnerID int64
-	BraveAPIKey     string
-	DataDir         string
-	LogLevel        string
-	Model           string
-	Provider        string // "anthropic", "openai", or "openrouter" (required)
-	MaxTokens       int
+	Transport   string // "telegram" (default), "tui", "http", "slack", ...
+	DataDir     string
+	LogLevel    string
+	BraveAPIKey string
+
+	Telegram  TelegramConfig
+	LLM       LLMConfig
+	Scheduler SchedulerConfig
 }
 
 func envDefault(key, fallback string) string {
@@ -33,14 +49,23 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Transport:     transport,
-		TelegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
-		BraveAPIKey:   os.Getenv("BRAVE_API_KEY"),
-		DataDir:       os.Getenv("GOGOGOT_DATA_DIR"),
-		LogLevel:      envDefault("LOG_LEVEL", "debug"),
-		Model:         os.Getenv("GOGOGOT_MODEL"),
-		Provider:      os.Getenv("GOGOGOT_PROVIDER"),
-		MaxTokens:     4096,
+		Transport:   transport,
+		BraveAPIKey: os.Getenv("BRAVE_API_KEY"),
+		DataDir:     os.Getenv("GOGOGOT_DATA_DIR"),
+		LogLevel:    envDefault("LOG_LEVEL", "debug"),
+
+		Telegram: TelegramConfig{
+			Token: os.Getenv("TELEGRAM_BOT_TOKEN"),
+		},
+		LLM: LLMConfig{
+			Model:     os.Getenv("GOGOGOT_MODEL"),
+			Provider:  os.Getenv("GOGOGOT_PROVIDER"),
+			MaxTokens: 4096,
+		},
+		Scheduler: SchedulerConfig{
+			TaskTimeout:   5 * time.Minute,
+			MaxConcurrent: 2,
+		},
 	}
 
 	if cfg.DataDir == "" {
@@ -53,16 +78,29 @@ func Load() (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid TELEGRAM_OWNER_ID: %w", err)
 		}
-		cfg.TelegramOwnerID = id
+		cfg.Telegram.OwnerID = id
 	}
 
 	if s := os.Getenv("GOGOGOT_MAX_TOKENS"); s != "" {
 		v, err := strconv.Atoi(s)
 		if err == nil && v > 0 {
-			cfg.MaxTokens = v
+			cfg.LLM.MaxTokens = v
+		}
+	}
+
+	if s := os.Getenv("GOGOGOT_SCHEDULER_TASK_TIMEOUT"); s != "" {
+		d, err := time.ParseDuration(s)
+		if err == nil && d > 0 {
+			cfg.Scheduler.TaskTimeout = d
+		}
+	}
+
+	if s := os.Getenv("GOGOGOT_SCHEDULER_MAX_CONCURRENT"); s != "" {
+		v, err := strconv.Atoi(s)
+		if err == nil && v > 0 {
+			cfg.Scheduler.MaxConcurrent = v
 		}
 	}
 
 	return cfg, nil
 }
-

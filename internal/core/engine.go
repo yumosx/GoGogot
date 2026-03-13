@@ -51,7 +51,10 @@ func New(cfg *config.Config, ch channel.Channel) (*Engine, error) {
 		return nil, err
 	}
 
-	sched := scheduler.New(cfg.DataDir, nil, st.LoadTimezone())
+	sched := scheduler.New(cfg.DataDir, nil, st.LoadTimezone(), scheduler.Options{
+		TaskTimeout:   cfg.Scheduler.TaskTimeout,
+		MaxConcurrent: cfg.Scheduler.MaxConcurrent,
+	})
 
 	extra := append(transport.ChannelTools(),
 		system.ScheduleTools(sched)...,
@@ -121,13 +124,13 @@ func (e *Engine) Run(ctx context.Context) error {
 }
 
 func resolveProvider(cfg *config.Config) (*llm.Provider, error) {
-	if cfg.Provider == "" {
+	if cfg.LLM.Provider == "" {
 		return nil, fmt.Errorf("GOGOGOT_PROVIDER is required — set to 'anthropic', 'openai', or 'openrouter'")
 	}
-	if cfg.Model == "" {
+	if cfg.LLM.Model == "" {
 		return nil, fmt.Errorf("GOGOGOT_MODEL is required — use an exact model ID (e.g. claude-sonnet-4-6, gpt-4o) or an OpenRouter slug (vendor/model)")
 	}
-	return llm.ResolveProvider(cfg.Model, cfg.Provider)
+	return llm.ResolveProvider(cfg.LLM.Model, cfg.LLM.Provider)
 }
 
 func (e *Engine) Channel() channel.Channel {
